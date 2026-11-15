@@ -254,11 +254,25 @@
                                        FontSize="10"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
                                        DockPanel.Dock="Left" />
+                            <Button Content="＋"
+                                    ToolTip="Add Account"
+                                    Command="{Binding AddAccountCommand}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Foreground="{StaticResource AccentGoldBrush}"
+                                    FontSize="12"
+                                    FontWeight="Bold"
+                                    Padding="6,0"
+                                    Margin="4,0,0,0"
+                                    Cursor="Hand"
+                                    DockPanel.Dock="Left" />
                             <TextBlock Text="BALANCE"
                                        FontSize="10"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
                                        DockPanel.Dock="Right" />
                         </DockPanel>
                     </Border>

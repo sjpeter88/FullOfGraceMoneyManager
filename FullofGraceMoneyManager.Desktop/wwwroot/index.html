@@ -245,6 +245,134 @@
     </div>
   </div>
 
+  <!-- 4. Add / Edit Account Modal -->
+  <div id="account-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">ACCOUNTS LEDGER</span>
+          <h2 id="account-modal-title">Add Account</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeAccountModal()">✕</button>
+      </div>
+      <form id="account-form" onsubmit="AppBridge.submitAccountForm(event)">
+        <input type="hidden" id="acct-edit-id" value="" />
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="acct-name">Account Name</label>
+            <input type="text" id="acct-name" placeholder="e.g. Household Checking" required />
+          </div>
+          <div class="form-field">
+            <label for="acct-type">Account Type</label>
+            <select id="acct-type" onchange="AppBridge.onAccountTypeChanged()">
+              <option value="Checking">Checking (Banking)</option>
+              <option value="Savings">Savings / HYSA (Banking)</option>
+              <option value="Cash">Cash / Wallet (Banking)</option>
+              <option value="CreditCard">Credit Card (Liability)</option>
+              <option value="Investment">Investment / Brokerage / 401k</option>
+              <option value="Loan">Loan / Mortgage (Liability)</option>
+              <option value="Asset">Asset / Property</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="acct-institution">Institution / Bank</label>
+            <input type="text" id="acct-institution" placeholder="e.g. Chase, Fidelity, Local Credit Union" />
+          </div>
+          <div class="form-field">
+            <label for="acct-mask">Last 4 Digits (Optional)</label>
+            <input type="text" id="acct-mask" maxlength="10" placeholder="e.g. 4821" />
+          </div>
+          <div class="form-field">
+            <label for="acct-opening-balance" id="acct-balance-label">Opening Balance ($)</label>
+            <input type="number" id="acct-opening-balance" step="0.01" value="0.00" required />
+            <small id="acct-balance-hint" style="color:var(--text-muted); font-size:11px; margin-top:3px;">Current starting balance in this account.</small>
+          </div>
+          <div class="form-field">
+            <label for="acct-portal">Online Portal URL (Optional)</label>
+            <input type="url" id="acct-portal" placeholder="https://..." />
+          </div>
+        </div>
+        <div class="form-field" style="margin-top:10px;">
+          <label for="acct-notes">Notes (Optional)</label>
+          <input type="text" id="acct-notes" placeholder="Account notes or purpose" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="AppBridge.closeAccountModal()">Cancel</button>
+          <button type="submit" class="btn btn-gold" id="acct-submit-btn">Save Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Add Budget Category Modal -->
+  <div id="category-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">ENVELOPE BUDGETING</span>
+          <h2>Add Budget Category</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeCategoryModal()">✕</button>
+      </div>
+      <form id="category-form" onsubmit="AppBridge.submitCategoryForm(event)">
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="cat-name">Category Name</label>
+            <input type="text" id="cat-name" placeholder="e.g. Childcare, Pet Care, Travel" required />
+          </div>
+          <div class="form-field">
+            <label for="cat-parent">Category Group</label>
+            <select id="cat-parent"></select>
+          </div>
+          <div class="form-field">
+            <label for="cat-budget">Monthly Target Budget ($)</label>
+            <input type="number" id="cat-budget" step="0.01" min="0" value="0.00" />
+          </div>
+          <div class="form-field">
+            <label for="cat-color">Color Tag</label>
+            <input type="color" id="cat-color" value="#38BDF8" style="height:36px; padding:2px;" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="AppBridge.closeCategoryModal()">Cancel</button>
+          <button type="submit" class="btn btn-gold">＋ Add Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Workspace Data & Reset Modal -->
+  <div id="workspace-data-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">WORKSPACE DATA</span>
+          <h2>Start Fresh or Manage Data</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeWorkspaceDataModal()">✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:14px; padding:8px 0 14px;">
+        <div class="card" style="padding:14px; border:1px solid var(--border-subtle);">
+          <div style="font-weight:700; margin-bottom:4px;">🧹 Reset to Clean Slate ($0.00)</div>
+          <p style="font-size:12.5px; color:var(--text-secondary); margin:0 0 10px;">
+            Deletes all accounts, transactions, holdings, recurring bills, debts, goals, and rules while keeping standard budget categories at $0.00.
+          </p>
+          <button type="button" class="btn btn-outline" style="border-color:rgba(248,113,113,0.45); color:#FCA5A5;" onclick="AppBridge.resetToCleanSlate()">🧹 Reset to Clean Slate ($0.00)</button>
+        </div>
+        <div class="card" style="padding:14px; border:1px solid var(--border-subtle);">
+          <div style="font-weight:700; margin-bottom:4px;">🧪 Load Sample Demo Data</div>
+          <p style="font-size:12.5px; color:var(--text-secondary); margin:0 0 10px;">
+            Replaces current workspace data with a pre-filled sample household dataset so you can explore charts, budgets, and reports right away.
+          </p>
+          <button type="button" class="btn btn-outline" onclick="AppBridge.loadSampleDemoData()">🧪 Load Demo Data</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-gold" onclick="AppBridge.closeWorkspaceDataModal()">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast-banner" class="toast-banner hidden"></div>
 

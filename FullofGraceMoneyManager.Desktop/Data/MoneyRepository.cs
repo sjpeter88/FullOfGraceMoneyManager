@@ -155,6 +155,168 @@ public class MoneyRepository
         return result;
     }
 
+    public Account CreateAccount(
+        string name,
+        string accountType,
+        string institution,
+        string accountNumberMask,
+        decimal openingBalance,
+        string? portalUrl = null,
+        string? notes = null)
+    {
+        string cleanType = string.IsNullOrWhiteSpace(accountType) ? "Checking" : accountType.Trim();
+        string group = cleanType switch
+        {
+            "CreditCard" or "Credit Card" => "Credit Cards",
+            "Investment" or "Brokerage" or "401k" or "IRA" => "Investments",
+            "Loan" or "Mortgage" or "Asset" => "Assets/Loans",
+            _ => "Banking"
+        };
+        bool isLiability = group is "Credit Cards" or "Assets/Loans" && openingBalance <= 0m;
+
+        string cleanMask = string.IsNullOrWhiteSpace(accountNumberMask)
+            ? ""
+            : (accountNumberMask.Trim().StartsWith("••") ? accountNumberMask.Trim() : "••" + accountNumberMask.Trim().TrimStart('•', '*'));
+
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Accounts (
+                Name, AccountNumberMask, AccountType, AccountGroup,
+                Institution, OpeningBalance, Currency, IsLiability,
+                IsActive, PortalUrl, Notes
+            )
+            VALUES (
+                @name, @mask, @type, @group,
+                @inst, @openBal, 'USD', @isLiab,
+                1, @portal, @notes
+            );
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(name) ? "New Account" : name.Trim());
+        cmd.Parameters.AddWithValue("@mask", cleanMask);
+        cmd.Parameters.AddWithValue("@type", cleanType);
+        cmd.Parameters.AddWithValue("@group", group);
+        cmd.Parameters.AddWithValue("@inst", string.IsNullOrWhiteSpace(institution) ? "Personal" : institution.Trim());
+        cmd.Parameters.AddWithValue("@openBal", openingBalance);
+        cmd.Parameters.AddWithValue("@isLiab", isLiability ? 1 : 0);
+        cmd.Parameters.AddWithValue("@portal", string.IsNullOrWhiteSpace(portalUrl) ? DBNull.Value : portalUrl.Trim());
+        cmd.Parameters.AddWithValue("@notes", string.IsNullOrWhiteSpace(notes) ? DBNull.Value : notes.Trim());
+
+        int newId = Convert.ToInt32(cmd.ExecuteScalar());
+        return GetAccountsWithBalances().First(a => a.Id == newId);
+    }
+
+    public Account? UpdateAccount(
+        int accountId,
+        string name,
+        string accountType,
+        string institution,
+        string accountNumberMask,
+        decimal openingBalance,
+        string? portalUrl = null,
+        string? notes = null)
+    {
+        string cleanType = string.IsNullOrWhiteSpace(accountType) ? "Checking" : accountType.Trim();
+        string group = cleanType switch
+        {
+            "CreditCard" or "Credit Card" => "Credit Cards",
+            "Investment" or "Brokerage" or "401k" or "IRA" => "Investments",
+            "Loan" or "Mortgage" or "Asset" => "Assets/Loans",
+            _ => "Banking"
+        };
+        bool isLiability = group is "Credit Cards" or "Assets/Loans" && openingBalance <= 0m;
+
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE Accounts
+            SET Name = @name,
+                AccountNumberMask = @mask,
+                AccountType = @type,
+                AccountGroup = @group,
+                Institution = @inst,
+                OpeningBalance = @openBal,
+                IsLiability = @isLiab,
+                PortalUrl = @portal,
+                Notes = @notes
+            WHERE Id = @id;
+            """;
+        cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(name) ? "Account" : name.Trim());
+        cmd.Parameters.AddWithValue("@mask", accountNumberMask?.Trim() ?? "");
+        cmd.Parameters.AddWithValue("@type", cleanType);
+        cmd.Parameters.AddWithValue("@group", group);
+        cmd.Parameters.AddWithValue("@inst", institution?.Trim() ?? "");
+        cmd.Parameters.AddWithValue("@openBal", openingBalance);
+        cmd.Parameters.AddWithValue("@isLiab", isLiability ? 1 : 0);
+        cmd.Parameters.AddWithValue("@portal", string.IsNullOrWhiteSpace(portalUrl) ? DBNull.Value : portalUrl.Trim());
+        cmd.Parameters.AddWithValue("@notes", string.IsNullOrWhiteSpace(notes) ? DBNull.Value : notes.Trim());
+        cmd.Parameters.AddWithValue("@id", accountId);
+        cmd.ExecuteNonQuery();
+
+        return GetAccountsWithBalances().FirstOrDefault(a => a.Id == accountId);
+    }
+
+    public void DeleteAccount(int accountId)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Accounts WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", accountId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public Category CreateCategory(string name, int? parentId, string categoryType, decimal monthlyBudget, string? colorHex = null)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Categories (Name, ParentId, CategoryType, ColorHex, Icon, MonthlyBudget)
+            VALUES (@name, @parentId, @type, @color, 'Tag', @budget);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(name) ? "Custom Category" : name.Trim());
+        cmd.Parameters.AddWithValue("@parentId", parentId.HasValue && parentId.Value > 0 ? parentId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@type", string.IsNullOrWhiteSpace(categoryType) ? "Expense" : categoryType.Trim());
+        cmd.Parameters.AddWithValue("@color", string.IsNullOrWhiteSpace(colorHex) ? "#38BDF8" : colorHex.Trim());
+        cmd.Parameters.AddWithValue("@budget", Math.Max(0m, monthlyBudget));
+        int id = Convert.ToInt32(cmd.ExecuteScalar());
+        return GetCategories().First(c => c.Id == id);
+    }
+
+    private int EnsureValidAccountId(SqliteConnection conn, int requestedAccountId, string fallbackType = "Checking", string fallbackName = "Primary Checking")
+    {
+        if (requestedAccountId > 0)
+        {
+            using var checkCmd = conn.CreateCommand();
+            checkCmd.CommandText = "SELECT COUNT(1) FROM Accounts WHERE Id = @id;";
+            checkCmd.Parameters.AddWithValue("@id", requestedAccountId);
+            if (Convert.ToInt64(checkCmd.ExecuteScalar() ?? 0L) > 0)
+            {
+                return requestedAccountId;
+            }
+        }
+
+        using (var firstCmd = conn.CreateCommand())
+        {
+            firstCmd.CommandText = "SELECT Id FROM Accounts ORDER BY Id LIMIT 1;";
+            var existing = firstCmd.ExecuteScalar();
+            if (existing != null && existing != DBNull.Value)
+            {
+                return Convert.ToInt32(existing);
+            }
+        }
+
+        var created = CreateAccount(fallbackName, fallbackType, "Personal", "", 0m);
+        return created.Id;
+    }
+
     public List<Category> GetCategories()
     {
         var list = new List<Category>();
@@ -950,12 +1112,13 @@ public class MoneyRepository
             .Where(a => string.Equals(a.AccountGroup, "Banking", StringComparison.OrdinalIgnoreCase))
             .Sum(a => a.CurrentBalance);
 
-        // Monthly Income & Expense totals (excluding Transfer category type)
+        // Current month Income & Expense totals (excluding Transfer category type)
+        string currentMonthKey = CurrentMonthKey();
         decimal monthlyIncome = 0m;
         decimal monthlyExpenses = 0m;
         var spendByCategory = new Dictionary<int, decimal>();
 
-        foreach (var tx in transactions)
+        foreach (var tx in transactions.Where(t => !string.IsNullOrEmpty(t.TransactionDate) && t.TransactionDate.StartsWith(currentMonthKey, StringComparison.Ordinal)))
         {
             if (tx.IsSplit && tx.Splits.Count > 0)
             {
@@ -989,15 +1152,37 @@ public class MoneyRepository
             })
             .ToList();
 
-        var cashFlow = new List<CashFlowPoint>
+        var cashFlow = new List<CashFlowPoint>();
+        var today = DateTime.Today;
+        for (int back = 5; back >= 0; back--)
         {
-            new() { Label = "Jun", Income = 7850m, Expense = 4920m },
-            new() { Label = "Jul", Income = 8100m, Expense = 5180m },
-            new() { Label = "Aug", Income = 7850m, Expense = 4740m },
-            new() { Label = "Sep", Income = 8450m, Expense = 5290m },
-            new() { Label = "Oct", Income = 8200m, Expense = 4860m },
-            new() { Label = "Nov", Income = Math.Max(monthlyIncome, 5012.40m), Expense = Math.Max(monthlyExpenses, 3453.59m) }
-        };
+            var mStart = new DateTime(today.Year, today.Month, 1).AddMonths(-back);
+            string mKey = mStart.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+            decimal mInc = 0m;
+            decimal mExp = 0m;
+            var dummySpend = new Dictionary<int, decimal>();
+            foreach (var tx in transactions.Where(t => !string.IsNullOrEmpty(t.TransactionDate) && t.TransactionDate.StartsWith(mKey, StringComparison.Ordinal)))
+            {
+                if (tx.IsSplit && tx.Splits.Count > 0)
+                {
+                    foreach (var s in tx.Splits)
+                    {
+                        AccumulateCategoryMetric(s.CategoryId, s.Amount, categoriesById, ref mInc, ref mExp, dummySpend);
+                    }
+                }
+                else
+                {
+                    AccumulateCategoryMetric(tx.CategoryId, tx.Amount, categoriesById, ref mInc, ref mExp, dummySpend);
+                }
+            }
+
+            cashFlow.Add(new CashFlowPoint
+            {
+                Label = mStart.ToString("MMM", CultureInfo.InvariantCulture),
+                Income = Math.Round(mInc, 2),
+                Expense = Math.Round(mExp, 2)
+            });
+        }
 
         return new DashboardMetrics
         {
@@ -1044,8 +1229,10 @@ public class MoneyRepository
         }
     }
 
-    public MonthlyBudgetSummary GetMonthlyBudgetSummary(string monthKey = "2026-11")
+    public MonthlyBudgetSummary GetMonthlyBudgetSummary(string? monthKey = null)
     {
+        monthKey = string.IsNullOrWhiteSpace(monthKey) ? CurrentMonthKey() : monthKey.Trim();
+        var accounts = GetAccountsWithBalances();
         var categories = GetCategories();
         var categoriesById = categories.ToDictionary(c => c.Id);
         var transactions = GetTransactions();
@@ -1157,22 +1344,47 @@ public class MoneyRepository
             .Where(e => e.AssignedAmount < e.MonthlyTarget)
             .Sum(e => e.MonthlyTarget - e.AssignedAmount);
 
-        // Total assignable pool = Monthly Income + Unallocated Liquid Cash Reserve ($650.00 buffer)
-        decimal inflowPool = Math.Max(monthIncome, 5012.40m) + 637.60m; // $5,650.00 pool
-        decimal readyToAssign = inflowPool - totalAssigned;
+        // Total assignable pool = Banking cash at month start (opening balances + prior transactions) + this month's income
+        string monthStartStr = $"{monthKey}-01";
+        var bankingAccountIds = accounts
+            .Where(a => string.Equals(a.AccountGroup, "Banking", StringComparison.OrdinalIgnoreCase))
+            .Select(a => a.Id)
+            .ToHashSet();
+
+        decimal bankingStartCash = accounts
+            .Where(a => bankingAccountIds.Contains(a.Id))
+            .Sum(a => a.OpeningBalance)
+            + transactions
+                .Where(t => bankingAccountIds.Contains(t.AccountId) && string.CompareOrdinal(t.TransactionDate, monthStartStr) < 0)
+                .Sum(t => t.Amount);
+
+        decimal inflowPool = Math.Max(0m, bankingStartCash + monthIncome);
+        decimal readyToAssign = inflowPool - totalRollover - totalAssigned;
+
+        decimal liquidCash = accounts
+            .Where(a => bankingAccountIds.Contains(a.Id))
+            .Sum(a => a.CurrentBalance);
+        string thirtyDaysAgo = DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        decimal outflow30Days = transactions
+            .Where(t => t.Amount < 0m && string.CompareOrdinal(t.TransactionDate, thirtyDaysAgo) >= 0)
+            .Sum(t => Math.Abs(t.Amount));
+        decimal avgDailyOutflow = outflow30Days / 30m;
+        int ageOfMoneyDays = (liquidCash > 0m && avgDailyOutflow > 0m)
+            ? Math.Clamp((int)Math.Round(liquidCash / avgDailyOutflow), 0, 999)
+            : 0;
 
         return new MonthlyBudgetSummary
         {
             MonthKey = monthKey,
             MonthDisplay = FormatMonthDisplay(monthKey),
-            TotalInflowPool = inflowPool,
+            TotalInflowPool = Math.Round(inflowPool, 2),
             TotalRollover = totalRollover,
             TotalAssigned = totalAssigned,
             TotalActivitySpent = totalActivity,
             TotalAvailableInEnvelopes = totalAvailable,
-            ReadyToAssign = readyToAssign,
+            ReadyToAssign = Math.Round(readyToAssign, 2),
             TotalUnderfunded = totalUnderfunded,
-            AgeOfMoneyDays = 38,
+            AgeOfMoneyDays = ageOfMoneyDays,
             Envelopes = envelopes
         };
     }
@@ -1196,7 +1408,7 @@ public class MoneyRepository
                 ON CONFLICT(MonthKey, CategoryId)
                 DO UPDATE SET AssignedAmount = excluded.AssignedAmount;
                 """;
-            cmd.Parameters.AddWithValue("@monthKey", string.IsNullOrWhiteSpace(monthKey) ? "2026-11" : monthKey);
+            cmd.Parameters.AddWithValue("@monthKey", string.IsNullOrWhiteSpace(monthKey) ? CurrentMonthKey() : monthKey);
             cmd.Parameters.AddWithValue("@catId", categoryId);
             cmd.Parameters.AddWithValue("@assigned", Math.Max(0m, assignedAmount));
             cmd.ExecuteNonQuery();
@@ -1215,8 +1427,9 @@ public class MoneyRepository
         dbTx.Commit();
     }
 
-    public int AutoFundUnderfundedEnvelopes(string monthKey = "2026-11")
+    public int AutoFundUnderfundedEnvelopes(string? monthKey = null)
     {
+        monthKey = string.IsNullOrWhiteSpace(monthKey) ? CurrentMonthKey() : monthKey.Trim();
         var summary = GetMonthlyBudgetSummary(monthKey);
         int fundedCount = 0;
 
@@ -1447,7 +1660,7 @@ public class MoneyRepository
                 );
                 SELECT last_insert_rowid();
                 """;
-            cmd.Parameters.AddWithValue("@accId", holding.AccountId);
+            cmd.Parameters.AddWithValue("@accId", EnsureValidAccountId(conn, holding.AccountId, "Investment", "Brokerage"));
             cmd.Parameters.AddWithValue("@ticker", holding.TickerSymbol.Trim().ToUpperInvariant());
             cmd.Parameters.AddWithValue("@name", holding.SecurityName.Trim());
             cmd.Parameters.AddWithValue("@assetClass", string.IsNullOrWhiteSpace(holding.AssetClass) ? "US Equity" : holding.AssetClass.Trim());
@@ -1527,7 +1740,7 @@ public class MoneyRepository
         var categories = GetCategories().ToDictionary(c => c.Id);
         var schedules = new List<RecurringSchedule>();
 
-        var referenceDate = new DateTime(2026, 11, 15);
+        var referenceDate = DateTime.Today;
 
         using var conn = new SqliteConnection(_connectionString);
         conn.Open();
@@ -1586,7 +1799,10 @@ public class MoneyRepository
             }
         }
 
-        decimal checkingBalance = accounts.FirstOrDefault(a => a.Id == 1)?.CurrentBalance ?? 5030.81m;
+        var checkingAccount = accounts.FirstOrDefault(a => string.Equals(a.AccountType, "Checking", StringComparison.OrdinalIgnoreCase))
+            ?? accounts.FirstOrDefault(a => string.Equals(a.AccountGroup, "Banking", StringComparison.OrdinalIgnoreCase));
+        int checkingAccountId = checkingAccount?.Id ?? 0;
+        decimal checkingBalance = checkingAccount?.CurrentBalance ?? 0m;
         decimal liquidBalance = accounts
             .Where(a => string.Equals(a.AccountGroup, "Banking", StringComparison.OrdinalIgnoreCase))
             .Sum(a => a.CurrentBalance);
@@ -1609,7 +1825,7 @@ public class MoneyRepository
                 outflows30 += Math.Abs(s.Amount);
             }
 
-            if (s.AccountId == 1)
+            if (checkingAccountId > 0 && s.AccountId == checkingAccountId)
             {
                 runningChecking += s.Amount;
                 if (runningChecking < lowestChecking)
@@ -1696,7 +1912,7 @@ public class MoneyRepository
     {
         if (!DateTime.TryParse(currentDueDate, out var dt))
         {
-            dt = new DateTime(2026, 11, 15);
+            dt = DateTime.Today;
         }
 
         DateTime nextDt = frequency switch
@@ -1738,11 +1954,11 @@ public class MoneyRepository
             );
             SELECT last_insert_rowid();
             """;
-        cmd.Parameters.AddWithValue("@accId", schedule.AccountId <= 0 ? 1 : schedule.AccountId);
+        cmd.Parameters.AddWithValue("@accId", EnsureValidAccountId(conn, schedule.AccountId, "Checking", "Primary Checking"));
         cmd.Parameters.AddWithValue("@payee", schedule.PayeeName.Trim());
         cmd.Parameters.AddWithValue("@catId", schedule.CategoryId.HasValue ? schedule.CategoryId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@freq", string.IsNullOrWhiteSpace(schedule.Frequency) ? "Monthly" : schedule.Frequency.Trim());
-        cmd.Parameters.AddWithValue("@dueDate", string.IsNullOrWhiteSpace(schedule.NextDueDate) ? "2026-11-25" : schedule.NextDueDate.Trim());
+        cmd.Parameters.AddWithValue("@dueDate", string.IsNullOrWhiteSpace(schedule.NextDueDate) ? DateTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : schedule.NextDueDate.Trim());
         cmd.Parameters.AddWithValue("@amount", schedule.Amount);
         cmd.Parameters.AddWithValue("@autoPay", schedule.IsAutoPay ? 1 : 0);
         cmd.Parameters.AddWithValue("@memo", string.IsNullOrWhiteSpace(schedule.Memo) ? DBNull.Value : schedule.Memo.Trim());
@@ -1871,7 +2087,8 @@ public class MoneyRepository
             }
         }
 
-        foreach (var tx in transactions)
+        string ytdPrefix = DateTime.Today.Year.ToString(CultureInfo.InvariantCulture) + "-";
+        foreach (var tx in transactions.Where(t => !string.IsNullOrEmpty(t.TransactionDate) && t.TransactionDate.StartsWith(ytdPrefix, StringComparison.Ordinal)))
         {
             if (tx.IsSplit && tx.Splits.Count > 0)
             {
@@ -1933,19 +2150,35 @@ public class MoneyRepository
             })
             .ToList();
 
-        var netWorthHistory = new List<NetWorthTrendPoint>
+        var netWorthHistory = new List<NetWorthTrendPoint>();
+        var today = DateTime.Today;
+        for (int back = 5; back >= 0; back--)
         {
-            new() { MonthLabel = "Jun 2026", TotalAssets = Math.Round(totalAssets - 18400m, 2), TotalLiabilities = Math.Round(totalLiabilities + 4200m, 2), NetWorth = Math.Round(netWorth - 22600m, 2) },
-            new() { MonthLabel = "Jul 2026", TotalAssets = Math.Round(totalAssets - 14900m, 2), TotalLiabilities = Math.Round(totalLiabilities + 3350m, 2), NetWorth = Math.Round(netWorth - 18250m, 2) },
-            new() { MonthLabel = "Aug 2026", TotalAssets = Math.Round(totalAssets - 11200m, 2), TotalLiabilities = Math.Round(totalLiabilities + 2500m, 2), NetWorth = Math.Round(netWorth - 13700m, 2) },
-            new() { MonthLabel = "Sep 2026", TotalAssets = Math.Round(totalAssets - 7600m, 2), TotalLiabilities = Math.Round(totalLiabilities + 1680m, 2), NetWorth = Math.Round(netWorth - 9280m, 2) },
-            new() { MonthLabel = "Oct 2026", TotalAssets = Math.Round(totalAssets - 3850m, 2), TotalLiabilities = Math.Round(totalLiabilities + 840m, 2), NetWorth = Math.Round(netWorth - 4690m, 2) },
-            new() { MonthLabel = "Nov 2026", TotalAssets = Math.Round(totalAssets, 2), TotalLiabilities = Math.Round(totalLiabilities, 2), NetWorth = Math.Round(netWorth, 2) }
-        };
+            var monthStart = new DateTime(today.Year, today.Month, 1).AddMonths(-back);
+            string monthEndKey = monthStart.AddMonths(1).AddDays(-1).ToString("yyyy-MM-dd");
+            decimal assetsAt = 0m;
+            decimal liabilitiesAt = 0m;
+            foreach (var acct in accounts)
+            {
+                decimal bal = back == 0
+                    ? acct.CurrentBalance
+                    : acct.OpeningBalance + transactions
+                        .Where(t => t.AccountId == acct.Id && string.CompareOrdinal(t.TransactionDate, monthEndKey) <= 0)
+                        .Sum(t => t.Amount);
+                if (bal >= 0m) assetsAt += bal; else liabilitiesAt += Math.Abs(bal);
+            }
+            netWorthHistory.Add(new NetWorthTrendPoint
+            {
+                MonthLabel = monthStart.ToString("MMM yyyy", CultureInfo.InvariantCulture),
+                TotalAssets = Math.Round(assetsAt, 2),
+                TotalLiabilities = Math.Round(liabilitiesAt, 2),
+                NetWorth = Math.Round(assetsAt - liabilitiesAt, 2)
+            });
+        }
 
         return new ExecutiveReportSummary
         {
-            ReportPeriodLabel = "November 2026 • Executive P&L & Stewardship Audit",
+            ReportPeriodLabel = $"Year-to-Date {today.Year} • Executive P&L & Stewardship Audit",
             GrossIncome = grossIncome,
             TotalOperatingExpenses = operatingExpenses,
             TotalDebtServiceAndTransfers = debtAndTransfers,
@@ -2033,7 +2266,7 @@ public class MoneyRepository
             categories = GetCategories(),
             payees = GetPayees(),
             rules = GetRules(),
-            budgetSummary = GetMonthlyBudgetSummary("2026-11"),
+            budgetSummary = GetMonthlyBudgetSummary(CurrentMonthKey()),
             portfolioSummary = GetInvestmentPortfolioSummary(),
             recurringSummary = GetRecurringCashFlowSummary(),
             reportSummary = GetExecutiveReportSummary(),
@@ -2109,7 +2342,7 @@ public class MoneyRepository
         int maxBaselineMonths = 0;
         int maxAcceleratedMonths = 0;
 
-        var referenceDate = new DateTime(2026, 12, 1);
+        var referenceDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1);
 
         for (int i = 0; i < ordered.Count; i++)
         {
@@ -2352,8 +2585,9 @@ public class MoneyRepository
     public SavingsGoalsWorkspaceSummary GetSavingsGoalsSummary()
     {
         var accounts = GetAccountsWithBalances();
-        var hysa = accounts.FirstOrDefault(a => a.Id == 2) ?? accounts.FirstOrDefault();
-        decimal hysaBalance = hysa?.CurrentBalance ?? 29362.40m;
+        var hysa = accounts.FirstOrDefault(a => string.Equals(a.AccountType, "Savings", StringComparison.OrdinalIgnoreCase))
+            ?? accounts.FirstOrDefault(a => string.Equals(a.AccountGroup, "Banking", StringComparison.OrdinalIgnoreCase));
+        decimal hysaBalance = hysa?.CurrentBalance ?? 0m;
 
         using var conn = new SqliteConnection(_connectionString);
         conn.Open();
@@ -2371,7 +2605,7 @@ public class MoneyRepository
             """;
 
         var goals = new List<SavingsGoal>();
-        var anchorDate = new DateTime(2026, 11, 15);
+        var anchorDate = DateTime.Today;
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
@@ -2407,7 +2641,7 @@ public class MoneyRepository
             {
                 Id = reader.GetInt32(0),
                 AccountId = reader.GetInt32(1),
-                AccountName = reader.IsDBNull(2) ? "High-Yield Savings ••9014" : reader.GetString(2),
+                AccountName = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
                 Name = reader.GetString(3),
                 CategoryGroup = reader.GetString(4),
                 IconGlyph = reader.GetString(5),
@@ -2530,7 +2764,7 @@ public class MoneyRepository
             );
             SELECT last_insert_rowid();
             """;
-        cmd.Parameters.AddWithValue("@accId", goal.AccountId <= 0 ? 2 : goal.AccountId);
+        cmd.Parameters.AddWithValue("@accId", EnsureValidAccountId(conn, goal.AccountId, "Savings", "Savings"));
         cmd.Parameters.AddWithValue("@name", goal.Name.Trim());
         cmd.Parameters.AddWithValue("@grp", string.IsNullOrWhiteSpace(goal.CategoryGroup) ? "Sinking Fund" : goal.CategoryGroup.Trim());
         cmd.Parameters.AddWithValue("@icon", string.IsNullOrWhiteSpace(goal.IconGlyph) ? "🎯" : goal.IconGlyph.Trim());

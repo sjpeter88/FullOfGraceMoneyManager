@@ -95,7 +95,7 @@ public class WebViewBridgeService
         var rules = _repository.GetRules();
         var transactions = _repository.GetTransactions(selectedAccountId, _viewModel.SearchQuery);
         var metrics = _repository.GetDashboardMetrics();
-        var budgetSummary = _repository.GetMonthlyBudgetSummary("2026-11");
+        var budgetSummary = _repository.GetMonthlyBudgetSummary(MoneyRepository.CurrentMonthKey());
         var portfolioSummary = _repository.GetInvestmentPortfolioSummary();
         var recurringSummary = _repository.GetRecurringCashFlowSummary();
         var reportSummary = _repository.GetExecutiveReportSummary();
@@ -350,10 +350,49 @@ public class WebViewBridgeService
                     HandleUpdateBudgetEnvelope(root);
                     break;
 
+                case "createAccount":
+                    HandleCreateAccount(root);
+                    break;
+
+                case "updateAccount":
+                    HandleUpdateAccount(root);
+                    break;
+
+                case "deleteAccount":
+                    if (root.TryGetProperty("accountId", out var delAccEl) && delAccEl.TryGetInt32(out int delAccId))
+                    {
+                        _repository.DeleteAccount(delAccId);
+                        if (_viewModel.SelectedAccount?.Id == delAccId)
+                        {
+                            _viewModel.SelectedAccount = null;
+                        }
+                        _viewModel.ReloadData(notifyWebView: true);
+                        PushToast("Account deleted.");
+                    }
+                    break;
+
+                case "createCategory":
+                    HandleCreateCategory(root);
+                    break;
+
+                case "resetCleanSlate":
+                    DatabaseInitializer.ResetToCleanSlate();
+                    _viewModel.SelectedAccount = null;
+                    _viewModel.ReloadData(notifyWebView: true);
+                    PushToast("Workspace reset to a clean $0.00 slate.");
+                    break;
+
+                case "loadDemoData":
+                    DatabaseInitializer.LoadSampleDemoData();
+                    _viewModel.SelectedAccount = null;
+                    _viewModel.ReloadData(notifyWebView: true);
+                    PushToast("Loaded sample demo dataset.");
+                    break;
+
                 case "autoFundBudget":
                     string autoMonth = root.TryGetProperty("monthKey", out var amEl) && amEl.ValueKind == JsonValueKind.String
-                        ? (amEl.GetString() ?? "2026-11")
-                        : "2026-11";
+                        ? (amEl.GetString() ?? MoneyRepository.CurrentMonthKey())
+                        : MoneyRepository.CurrentMonthKey();
                     int fundedCount = _repository.AutoFundUnderfundedEnvelopes(autoMonth);
                     _viewModel.ReloadData(notifyWebView: true);
                     PushToast($"Auto-funded {fundedCount} underfunded envelope(s) to their monthly targets.");
@@ -423,7 +462,7 @@ public class WebViewBridgeService
                 case "exportLedgerCsv":
                     HandleExportFile(
                         title: "Export Checkbook Ledger to CSV",
-                        defaultFileName: "FullOfGrace_Ledger_Export_2026-11.csv",
+                        defaultFileName: $"FullOfGrace_Ledger_Export_{DateTime.Today:yyyy-MM}.csv",
                         filter: "CSV Spreadsheet (*.csv)|*.csv|All Files (*.*)|*.*",
                         contentGenerator: () => _repository.ExportTransactionsCsv());
                     break;
@@ -431,7 +470,7 @@ public class WebViewBridgeService
                 case "exportStewardshipTaxCsv":
                     HandleExportFile(
                         title: "Export Charitable Stewardship & Tax Receipts to CSV",
-                        defaultFileName: "FullOfGrace_Stewardship_Tax_Receipts_2026.csv",
+                        defaultFileName: $"FullOfGrace_Stewardship_Tax_Receipts_{DateTime.Today:yyyy}.csv",
                         filter: "CSV Spreadsheet (*.csv)|*.csv|All Files (*.*)|*.*",
                         contentGenerator: () => _repository.ExportStewardshipTaxReceiptsCsv());
                     break;
@@ -439,7 +478,7 @@ public class WebViewBridgeService
                 case "exportWorkspaceJsonBackup":
                     HandleExportFile(
                         title: "Save Full Workspace JSON Snapshot Backup",
-                        defaultFileName: "FullOfGrace_WorkspaceBackup_2026-11.json",
+                        defaultFileName: $"FullOfGrace_WorkspaceBackup_{DateTime.Today:yyyy-MM}.json",
                         filter: "JSON Backup Snapshot (*.json)|*.json|All Files (*.*)|*.*",
                         contentGenerator: () => _repository.ExportFullWorkspaceJsonBackup());
                     break;
@@ -1004,5 +1043,58 @@ public class WebViewBridgeService
         int count = _repository.CompleteReconciliationSession(req);
         _viewModel.ReloadData(notifyWebView: true);
         PushToast($"Statement reconciled! Locked {count} transaction(s) at {req.StatementEndingBalance:C2}.");
+    }
+
+    private void HandleCreateAccount(JsonElement root)
+    {
+        string name = root.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? (nEl.GetString() ?? "New Account") : "New Account";
+        string accountType = root.TryGetProperty("accountType", out var tEl) && tEl.ValueKind == JsonValueKind.String ? (tEl.GetString() ?? "Checking") : "Checking";
+        string institution = root.TryGetProperty("institution", out var iEl) && iEl.ValueKind == JsonValueKind.String ? (iEl.GetString() ?? "Personal") : "Personal";
+        string mask = root.TryGetProperty("accountNumberMask", out var mEl) && mEl.ValueKind == JsonValueKind.String ? (mEl.GetString() ?? "") : "";
+        decimal openingBalance = root.TryGetProperty("openingBalance", out var bEl) && bEl.TryGetDecimal(out var bal) ? bal : 0m;
+        string? portalUrl = root.TryGetProperty("portalUrl", out var pEl) && pEl.ValueKind == JsonValueKind.String ? pEl.GetString() : null;
+        string? notes = root.TryGetProperty("notes", out var noEl) && noEl.ValueKind == JsonValueKind.String ? noEl.GetString() : null;
+
+        var created = _repository.CreateAccount(name, accountType, institution, mask, openingBalance, portalUrl, notes);
+        _viewModel.ReloadData(notifyWebView: false);
+        _viewModel.SelectAccountById(created.Id);
+        PushStateToWebView();
+        PushToast($"Created account '{created.Name}' ({created.CurrentBalance:C2}).");
+    }
+
+    private void HandleUpdateAccount(JsonElement root)
+    {
+        if (!root.TryGetProperty("accountId", out var idEl) || !idEl.TryGetInt32(out int accountId))
+        {
+            return;
+        }
+
+        string name = root.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? (nEl.GetString() ?? "Account") : "Account";
+        string accountType = root.TryGetProperty("accountType", out var tEl) && tEl.ValueKind == JsonValueKind.String ? (tEl.GetString() ?? "Checking") : "Checking";
+        string institution = root.TryGetProperty("institution", out var iEl) && iEl.ValueKind == JsonValueKind.String ? (iEl.GetString() ?? "") : "";
+        string mask = root.TryGetProperty("accountNumberMask", out var mEl) && mEl.ValueKind == JsonValueKind.String ? (mEl.GetString() ?? "") : "";
+        decimal openingBalance = root.TryGetProperty("openingBalance", out var bEl) && bEl.TryGetDecimal(out var bal) ? bal : 0m;
+        string? portalUrl = root.TryGetProperty("portalUrl", out var pEl) && pEl.ValueKind == JsonValueKind.String ? pEl.GetString() : null;
+        string? notes = root.TryGetProperty("notes", out var noEl) && noEl.ValueKind == JsonValueKind.String ? noEl.GetString() : null;
+
+        var updated = _repository.UpdateAccount(accountId, name, accountType, institution, mask, openingBalance, portalUrl, notes);
+        _viewModel.ReloadData(notifyWebView: true);
+        if (updated != null)
+        {
+            PushToast($"Updated account '{updated.Name}'.");
+        }
+    }
+
+    private void HandleCreateCategory(JsonElement root)
+    {
+        string name = root.TryGetProperty("name", out var nEl) && nEl.ValueKind == JsonValueKind.String ? (nEl.GetString() ?? "Custom Category") : "Custom Category";
+        int? parentId = root.TryGetProperty("parentId", out var pEl) && pEl.ValueKind == JsonValueKind.Number && pEl.TryGetInt32(out int pid) ? pid : null;
+        string categoryType = root.TryGetProperty("categoryType", out var tEl) && tEl.ValueKind == JsonValueKind.String ? (tEl.GetString() ?? "Expense") : "Expense";
+        decimal monthlyBudget = root.TryGetProperty("monthlyBudget", out var bEl) && bEl.TryGetDecimal(out var bud) ? bud : 0m;
+        string? colorHex = root.TryGetProperty("colorHex", out var cEl) && cEl.ValueKind == JsonValueKind.String ? cEl.GetString() : null;
+
+        var created = _repository.CreateCategory(name, parentId, categoryType, monthlyBudget, colorHex);
+        _viewModel.ReloadData(notifyWebView: true);
+        PushToast($"Added category '{created.Name}'.");
     }
 }

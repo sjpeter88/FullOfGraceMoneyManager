@@ -288,6 +288,20 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void AddAccount()
+    {
+        EnsureAppWorkspaceLoaded();
+        ModalRequested?.Invoke("newAccount");
+    }
+
+    [RelayCommand]
+    private void ManageData()
+    {
+        EnsureAppWorkspaceLoaded();
+        ModalRequested?.Invoke("workspaceData");
+    }
+
+    [RelayCommand]
     private void ToggleBrowserMode()
     {
         IsBrowserBarVisible = !IsBrowserBarVisible;

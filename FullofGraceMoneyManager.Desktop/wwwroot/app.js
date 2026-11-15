@@ -404,6 +404,47 @@ const AppBridge = (() => {
       </div>
     `).join("");
 
+    const currentMonthLabel = new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" });
+
+    if (!state.accounts || state.accounts.length === 0) {
+      return `
+        <section class="panel-card" style="padding:36px 28px; text-align:center; border:1px dashed rgba(245,158,11,0.45); background:linear-gradient(135deg, rgba(15,23,42,0.92), rgba(30,41,59,0.72));">
+          <div class="kicker-pill" style="margin:0 auto 10px;">CLEAN SLATE • $0.00 READY</div>
+          <h2 style="font-size:22px; margin:0 0 8px;">Welcome to Full of Grace Money Manager</h2>
+          <p style="max-width:560px; margin:0 auto 20px; color:var(--text-secondary); font-size:13.5px; line-height:1.55;">
+            Your ledger starts at <strong>$0.00</strong> with no pre-filled numbers. Add your first checking, savings, credit card, or investment account to start tracking your real finances—or load sample demo data if you want to explore first.
+          </p>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-gold" onclick="AppBridge.openAccountModal()">＋ Add Your First Account</button>
+            <button type="button" class="btn btn-outline" onclick="AppBridge.openWorkspaceDataModal()">🧪 Load Sample Demo Data</button>
+          </div>
+        </section>
+
+        <section class="kpi-grid" style="margin-top:16px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Net Worth</div>
+            <div class="kpi-value">${fmtCurrency(0)}</div>
+            <div class="kpi-sub"><span>Assets: ${fmtCurrency(0)}</span><span>No accounts yet</span></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Liquid Banking Cash</div>
+            <div class="kpi-value">${fmtCurrency(0)}</div>
+            <div class="kpi-sub"><span>Checking &amp; Savings</span><span>Ready</span></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Month-to-Date Inflow</div>
+            <div class="kpi-value amount-positive">${fmtCurrency(0)}</div>
+            <div class="kpi-sub"><span>Current Month</span><span>${escapeHtml(currentMonthLabel)}</span></div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Month-to-Date Outflow</div>
+            <div class="kpi-value" style="color:var(--accent-gold)">${fmtCurrency(0)}</div>
+            <div class="kpi-sub"><span>Savings Rate</span><span>0% Saved</span></div>
+          </div>
+        </section>
+      `;
+    }
+
     return `
       <section class="kpi-grid">
         <div class="kpi-card">
@@ -418,7 +459,7 @@ const AppBridge = (() => {
           <div class="kpi-label">Liquid Banking Cash</div>
           <div class="kpi-value">${fmtCurrency(m.liquidCash)}</div>
           <div class="kpi-sub">
-            <span>Checking + HYSA Reserve</span>
+            <span>Checking + Savings Reserve</span>
             <span style="color:var(--accent-blue)">Ready</span>
           </div>
         </div>
@@ -426,8 +467,8 @@ const AppBridge = (() => {
           <div class="kpi-label">Month-to-Date Inflow</div>
           <div class="kpi-value amount-positive">${fmtCurrency(m.monthlyIncome)}</div>
           <div class="kpi-sub">
-            <span>Payroll, Consulting &amp; Yield</span>
-            <span>Nov 2026</span>
+            <span>Income &amp; Yield</span>
+            <span>${escapeHtml(currentMonthLabel)}</span>
           </div>
         </div>
         <div class="kpi-card">
@@ -477,6 +518,7 @@ const AppBridge = (() => {
             <div class="panel-title">Accounts Overview — Click Any Account to Open Checkbook Register</div>
             <div class="panel-subtitle">Synchronized with the WPF Left Sidebar TreeView</div>
           </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.openAccountModal()">＋ Add Account</button>
         </div>
         <div class="accounts-strip">
           ${accountCards}
@@ -1774,6 +1816,7 @@ const AppBridge = (() => {
             <div class="kpi-label">Age of Money</div>
             <div style="font-family:var(--font-mono); font-size:15px; font-weight:800; color:var(--accent-gold);">${b.ageOfMoneyDays} Days</div>
           </div>
+          <button type="button" class="btn btn-outline" onclick="AppBridge.openCategoryModal()">＋ Add Category</button>
           <button class="btn btn-gold" onclick="AppBridge.autoFundAllEnvelopes()">
             ⚡ Auto-Fund Underfunded (${fmtCurrency(b.totalUnderfunded)})
           </button>
@@ -1973,7 +2016,13 @@ const AppBridge = (() => {
 
   function submitNewHolding(e) {
     e.preventDefault();
-    const accountId = Number(document.getElementById("new-hold-acc")?.value || 4);
+    if (!state.accounts || state.accounts.length === 0) {
+      showToast("Please add an investment account first.");
+      openAccountModal();
+      return;
+    }
+    const defaultInvAcc = state.accounts.find((a) => a.accountGroup === "Investments") || state.accounts[0];
+    const accountId = Number(document.getElementById("new-hold-acc")?.value || defaultInvAcc?.id || 0);
     const tickerSymbol = (document.getElementById("new-hold-ticker")?.value || "").trim().toUpperCase();
     const securityName = (document.getElementById("new-hold-name")?.value || "").trim();
     const assetClass = document.getElementById("new-hold-class")?.value || "US Equity";
@@ -2427,11 +2476,16 @@ const AppBridge = (() => {
 
   function submitNewRecurringSchedule(e) {
     e.preventDefault();
-    const accountId = Number(document.getElementById("rec-sched-acc")?.value || 1);
+    if (!state.accounts || state.accounts.length === 0) {
+      showToast("Please add an account first.");
+      openAccountModal();
+      return;
+    }
+    const accountId = Number(document.getElementById("rec-sched-acc")?.value || state.accounts[0]?.id || 0);
     const payeeName = (document.getElementById("rec-sched-payee")?.value || "").trim();
     const categoryId = Number(document.getElementById("rec-sched-cat")?.value || 20);
     const frequency = document.getElementById("rec-sched-freq")?.value || "Monthly";
-    const nextDueDate = document.getElementById("rec-sched-date")?.value || "2026-11-25";
+    const nextDueDate = document.getElementById("rec-sched-date")?.value || new Date().toISOString().slice(0, 10);
     const flow = document.getElementById("rec-sched-flow")?.value || "bill";
     const rawAmt = Math.abs(Number(document.getElementById("rec-sched-amt")?.value || 0));
     const amount = flow === "income" ? rawAmt : -rawAmt;
@@ -2609,7 +2663,7 @@ const AppBridge = (() => {
           </div>
           <div class="form-field" style="width:130px;">
             <label>Next Due Date</label>
-            <input type="date" id="rec-sched-date" value="2026-11-22" required />
+            <input type="date" id="rec-sched-date" value="${new Date().toISOString().slice(0, 10)}" required />
           </div>
           <div class="form-field" style="width:105px;">
             <label>Amount ($)</label>
@@ -3769,20 +3823,28 @@ const AppBridge = (() => {
 
   function submitNewSavingsGoal(e) {
     e.preventDefault();
+    if (!state.accounts || state.accounts.length === 0) {
+      showToast("Please add a savings or checking account first.");
+      openAccountModal();
+      return;
+    }
+    const defaultSavingsAcc = state.accounts.find((a) => a.accountType === "Savings")
+      || state.accounts.find((a) => a.accountGroup === "Banking")
+      || state.accounts[0];
     const name = document.getElementById("new-goal-name")?.value.trim();
     const categoryGroup = document.getElementById("new-goal-group")?.value || "Sinking Fund";
     const iconGlyph = document.getElementById("new-goal-icon")?.value || "🎯";
     const targetAmount = Math.max(1, Number(document.getElementById("new-goal-target")?.value || 0));
     const currentSavedAmount = Math.max(0, Number(document.getElementById("new-goal-saved")?.value || 0));
     const monthlyContributionTarget = Math.max(0, Number(document.getElementById("new-goal-monthly")?.value || 250));
-    const targetDate = document.getElementById("new-goal-date")?.value || "2027-12-01";
+    const targetDate = document.getElementById("new-goal-date")?.value || `${new Date().getFullYear() + 1}-06-01`;
 
     if (!name || targetAmount <= 0) return;
 
     if (isWebViewHost()) {
       postToHost({
         type: "createSavingsGoal",
-        accountId: 2,
+        accountId: defaultSavingsAcc?.id || 0,
         name,
         categoryGroup,
         iconGlyph,
@@ -4454,7 +4516,224 @@ const AppBridge = (() => {
     }
   }
 
+  function openAccountModal(accountId = null) {
+    const overlay = document.getElementById("account-modal-overlay");
+    if (!overlay) return;
+    const titleEl = document.getElementById("account-modal-title");
+    const editIdEl = document.getElementById("acct-edit-id");
+    const nameEl = document.getElementById("acct-name");
+    const typeEl = document.getElementById("acct-type");
+    const instEl = document.getElementById("acct-institution");
+    const maskEl = document.getElementById("acct-mask");
+    const balEl = document.getElementById("acct-opening-balance");
+    const portalEl = document.getElementById("acct-portal");
+    const notesEl = document.getElementById("acct-notes");
+
+    const existing = accountId ? state.accounts.find((a) => a.id === accountId) : null;
+    if (existing) {
+      titleEl.textContent = `Edit Account — ${existing.name}`;
+      editIdEl.value = String(existing.id);
+      nameEl.value = existing.name || "";
+      typeEl.value = existing.accountType || "Checking";
+      instEl.value = existing.institution || "";
+      maskEl.value = (existing.accountNumberMask || "").replace(/^•+/, "");
+      const isLiab = typeEl.value === "CreditCard" || typeEl.value === "Loan";
+      balEl.value = isLiab ? Math.abs(Number(existing.openingBalance || 0)).toFixed(2) : Number(existing.openingBalance || 0).toFixed(2);
+      portalEl.value = existing.portalUrl || "";
+      notesEl.value = existing.notes || "";
+    } else {
+      titleEl.textContent = "Add Account";
+      editIdEl.value = "";
+      document.getElementById("account-form")?.reset();
+      typeEl.value = "Checking";
+      balEl.value = "0.00";
+    }
+    onAccountTypeChanged();
+    overlay.classList.remove("hidden");
+  }
+
+  function closeAccountModal() {
+    document.getElementById("account-modal-overlay")?.classList.add("hidden");
+  }
+
+  function onAccountTypeChanged() {
+    const type = document.getElementById("acct-type")?.value || "Checking";
+    const labelEl = document.getElementById("acct-balance-label");
+    const hintEl = document.getElementById("acct-balance-hint");
+    if (!labelEl || !hintEl) return;
+    if (type === "CreditCard" || type === "Loan") {
+      labelEl.textContent = "Current Amount Owed ($)";
+      hintEl.textContent = "Enter as a positive number (e.g. 500.00). Stored as a liability (−$500.00).";
+    } else {
+      labelEl.textContent = "Opening Balance ($)";
+      hintEl.textContent = "Current starting balance in this account.";
+    }
+  }
+
+  function submitAccountForm(e) {
+    e.preventDefault();
+    const editId = Number(document.getElementById("acct-edit-id")?.value || 0);
+    const name = (document.getElementById("acct-name")?.value || "").trim();
+    const accountType = document.getElementById("acct-type")?.value || "Checking";
+    const institution = (document.getElementById("acct-institution")?.value || "").trim();
+    const accountNumberMask = (document.getElementById("acct-mask")?.value || "").trim();
+    const rawBal = Number(document.getElementById("acct-opening-balance")?.value || 0);
+    const isLiabilityType = accountType === "CreditCard" || accountType === "Loan";
+    const openingBalance = isLiabilityType ? -Math.abs(rawBal) : rawBal;
+    const portalUrl = (document.getElementById("acct-portal")?.value || "").trim() || null;
+    const notes = (document.getElementById("acct-notes")?.value || "").trim() || null;
+
+    if (!name) return;
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: editId > 0 ? "updateAccount" : "createAccount",
+        accountId: editId,
+        name,
+        accountType,
+        institution,
+        accountNumberMask,
+        openingBalance,
+        portalUrl,
+        notes
+      });
+    } else {
+      const group = accountType === "CreditCard" ? "Credit Cards" : (accountType === "Investment" ? "Investments" : (accountType === "Loan" || accountType === "Asset" ? "Assets/Loans" : "Banking"));
+      const mask = accountNumberMask ? (accountNumberMask.startsWith("••") ? accountNumberMask : "••" + accountNumberMask) : "";
+      if (editId > 0) {
+        const idx = state.accounts.findIndex((a) => a.id === editId);
+        if (idx >= 0) {
+          state.accounts[idx] = { ...state.accounts[idx], name, accountType, accountGroup: group, institution: institution || "Personal", accountNumberMask: mask, openingBalance, portalUrl, notes };
+        }
+        showToast(`Updated account '${name}'.`);
+      } else {
+        const newId = Date.now();
+        state.accounts.push({ id: newId, name, accountNumberMask: mask, accountType, accountGroup: group, institution: institution || "Personal", openingBalance, currentBalance: openingBalance, clearedBalance: openingBalance, pendingTotal: 0, isLiability: isLiabilityType, portalUrl, notes });
+        state.selectedAccountId = newId;
+        state.selectedAccount = state.accounts[state.accounts.length - 1];
+        showToast(`Created account '${name}'.`);
+      }
+      recalcStandaloneBalances();
+      render();
+    }
+    closeAccountModal();
+  }
+
+  function deleteAccount(accountId) {
+    const acc = state.accounts.find((a) => a.id === accountId);
+    const label = acc ? acc.name : `Account #${accountId}`;
+    if (!window.confirm(`Delete '${label}' and all of its transactions? This cannot be undone.`)) {
+      return;
+    }
+    if (isWebViewHost()) {
+      postToHost({ type: "deleteAccount", accountId });
+    } else {
+      state.accounts = state.accounts.filter((a) => a.id !== accountId);
+      state.transactions = state.transactions.filter((t) => t.accountId !== accountId);
+      if (state.selectedAccountId === accountId) {
+        state.selectedAccountId = null;
+        state.selectedAccount = null;
+        state.activeView = "Dashboard";
+      }
+      recalcStandaloneBalances();
+      render();
+      showToast(`Deleted '${label}'.`);
+    }
+  }
+
+  function openCategoryModal() {
+    const overlay = document.getElementById("category-modal-overlay");
+    if (!overlay) return;
+    const parentSelect = document.getElementById("cat-parent");
+    if (parentSelect) {
+      const parentGroups = (state.categories || []).filter((c) => !c.parentId && c.categoryType === "Expense");
+      parentSelect.innerHTML = `<option value="">(Top-Level Expense Group)</option>` +
+        parentGroups.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
+    }
+    document.getElementById("category-form")?.reset();
+    overlay.classList.remove("hidden");
+  }
+
+  function closeCategoryModal() {
+    document.getElementById("category-modal-overlay")?.classList.add("hidden");
+  }
+
+  function submitCategoryForm(e) {
+    e.preventDefault();
+    const name = (document.getElementById("cat-name")?.value || "").trim();
+    const parentVal = document.getElementById("cat-parent")?.value;
+    const parentId = parentVal ? Number(parentVal) : null;
+    const monthlyBudget = Math.max(0, Number(document.getElementById("cat-budget")?.value || 0));
+    const colorHex = document.getElementById("cat-color")?.value || "#38BDF8";
+    if (!name) return;
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "createCategory",
+        name,
+        parentId,
+        categoryType: "Expense",
+        monthlyBudget,
+        colorHex
+      });
+    } else {
+      const parentObj = parentId ? state.categories.find((c) => c.id === parentId) : null;
+      state.categories.push({
+        id: Date.now(),
+        name,
+        parentId,
+        parentName: parentObj ? parentObj.name : null,
+        fullPath: parentObj ? `${parentObj.name}:${name}` : name,
+        categoryType: "Expense",
+        colorHex,
+        monthlyBudget
+      });
+      render();
+      showToast(`Added category '${name}'.`);
+    }
+    closeCategoryModal();
+  }
+
+  function openWorkspaceDataModal() {
+    document.getElementById("workspace-data-modal-overlay")?.classList.remove("hidden");
+  }
+
+  function closeWorkspaceDataModal() {
+    document.getElementById("workspace-data-modal-overlay")?.classList.add("hidden");
+  }
+
+  function resetToCleanSlate() {
+    if (!window.confirm("Reset the entire workspace to a clean $0.00 slate? All accounts, transactions, holdings, bills, debts, and goals will be deleted.")) {
+      return;
+    }
+    if (isWebViewHost()) {
+      postToHost({ type: "resetCleanSlate" });
+    } else {
+      clearHostStateBeforeSync();
+      render();
+      showToast("Workspace reset to a clean $0.00 slate.");
+    }
+    closeWorkspaceDataModal();
+  }
+
+  function loadSampleDemoData() {
+    if (!window.confirm("Load sample demo data? This will replace your current accounts and transactions with sample data.")) {
+      return;
+    }
+    if (isWebViewHost()) {
+      postToHost({ type: "loadDemoData" });
+    } else {
+      showToast("Demo data is already active in standalone preview.");
+    }
+    closeWorkspaceDataModal();
+  }
+
   function openNewTransactionModal(defaultAccountId) {
+    if (!state.accounts || state.accounts.length === 0) {
+      showToast("Please add an account first before recording a transaction.");
+      openAccountModal();
+      return;
+    }
     populateModalSelects(defaultAccountId);
     document.getElementById("modal-overlay").classList.remove("hidden");
   }
@@ -4574,8 +4853,49 @@ const AppBridge = (() => {
     closeModal();
   }
 
+  function clearHostStateBeforeSync() {
+    const todayKey = new Date().toISOString().slice(0, 7);
+    state.selectedAccountId = null;
+    state.selectedAccount = null;
+    state.expandedSplitIds = {};
+    state.budgetMonthKey = todayKey;
+    state.reconcileSession = {
+      accountId: 0,
+      statementDate: new Date().toISOString().slice(0, 10),
+      targetEndingBalance: 0,
+      checkedTxIds: {}
+    };
+    state.reconciliationHistory = [];
+    state.metrics = {
+      netWorth: 0,
+      totalAssets: 0,
+      totalLiabilities: 0,
+      liquidCash: 0,
+      monthlyIncome: 0,
+      monthlyExpenses: 0,
+      savingsRatePercent: 0,
+      categoryBreakdown: [],
+      monthlyCashFlow: []
+    };
+    state.accounts = [];
+    state.payees = [];
+    state.rules = [];
+    state.transactions = [];
+    state.investmentHoldings = [];
+    state.recurringSchedules = [];
+    state.debtLiabilities = [];
+    state.savingsGoals = [];
+    state.budgetSummary = null;
+    state.portfolioSummary = null;
+    state.recurringSummary = null;
+    state.reportSummary = null;
+    state.debtSummary = null;
+    state.savingsGoalsSummary = null;
+  }
+
   function initBridge() {
     if (isWebViewHost()) {
+      clearHostStateBeforeSync();
       window.chrome.webview.addEventListener("message", (event) => {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
         if (!data || !data.type) return;
@@ -4586,7 +4906,10 @@ const AppBridge = (() => {
           state.selectedAccount = data.selectedAccount ?? null;
           state.searchQuery = data.searchQuery ?? "";
           if (data.metrics) state.metrics = data.metrics;
-          if (data.budgetSummary) state.budgetSummary = data.budgetSummary;
+          if (data.budgetSummary) {
+            state.budgetSummary = data.budgetSummary;
+            if (data.budgetSummary.monthKey) state.budgetMonthKey = data.budgetSummary.monthKey;
+          }
           if (data.portfolioSummary) state.portfolioSummary = data.portfolioSummary;
           if (data.recurringSummary) state.recurringSummary = data.recurringSummary;
           if (data.reportSummary) state.reportSummary = data.reportSummary;
@@ -4614,6 +4937,10 @@ const AppBridge = (() => {
             openReconcileModal(data.selectedAccountId);
           } else if (data.modal === "importStatement") {
             openImportStudioModal(data.selectedAccountId);
+          } else if (data.modal === "newAccount") {
+            openAccountModal();
+          } else if (data.modal === "workspaceData") {
+            openWorkspaceDataModal();
           }
         } else if (data.type === "toast" && data.message) {
           showToast(data.message);
@@ -4671,6 +4998,18 @@ const AppBridge = (() => {
     switchView,
     selectAccount,
     cycleStatus,
+    openAccountModal,
+    closeAccountModal,
+    onAccountTypeChanged,
+    submitAccountForm,
+    deleteAccount,
+    openCategoryModal,
+    closeCategoryModal,
+    submitCategoryForm,
+    openWorkspaceDataModal,
+    closeWorkspaceDataModal,
+    resetToCleanSlate,
+    loadSampleDemoData,
     setStatusFilter: (f) => { state.statusFilter = f; render(); },
     setTagFilter,
     setCategoryFilter,

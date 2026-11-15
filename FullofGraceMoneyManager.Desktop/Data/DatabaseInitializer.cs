@@ -36,6 +36,34 @@ public static class DatabaseInitializer
 
         CreateSchema(connection);
         EnsurePhase4CColumns(connection);
+        EnsureCleanSlateV2(connection);
+        SeedCategoriesIfEmpty(connection);
+    }
+
+    public static void ResetToCleanSlate()
+    {
+        using var connection = new SqliteConnection(GetConnectionString());
+        connection.Open();
+
+        CreateSchema(connection);
+        EnsurePhase4CColumns(connection);
+        WipeAllDataToCleanSlate(connection);
+        SeedCategoriesIfEmpty(connection);
+    }
+
+    public static void LoadSampleDemoData()
+    {
+        using var connection = new SqliteConnection(GetConnectionString());
+        connection.Open();
+
+        CreateSchema(connection);
+        EnsurePhase4CColumns(connection);
+        WipeAllDataToCleanSlate(connection);
+        using (var delCat = connection.CreateCommand())
+        {
+            delCat.CommandText = "DELETE FROM Categories;";
+            delCat.ExecuteNonQuery();
+        }
         SeedIfEmpty(connection);
         SeedRulesIfEmpty(connection);
         SeedBudgetEnvelopesIfEmpty(connection);
@@ -43,6 +71,98 @@ public static class DatabaseInitializer
         SeedRecurringSchedulesIfEmpty(connection);
         SeedDebtLiabilitiesIfEmpty(connection);
         SeedSavingsGoalsIfEmpty(connection);
+    }
+
+    private static void EnsureCleanSlateV2(SqliteConnection connection)
+    {
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.CommandText = "SELECT Value FROM WorkspaceSettings WHERE Key = 'CleanSlateV2';";
+            var val = checkCmd.ExecuteScalar()?.ToString();
+            if (val == "1")
+            {
+                return;
+            }
+        }
+
+        WipeAllDataToCleanSlate(connection);
+
+        using var setCmd = connection.CreateCommand();
+        setCmd.CommandText = """
+            INSERT INTO WorkspaceSettings (Key, Value) VALUES ('CleanSlateV2', '1')
+            ON CONFLICT(Key) DO UPDATE SET Value = '1';
+            """;
+        setCmd.ExecuteNonQuery();
+    }
+
+    private static void WipeAllDataToCleanSlate(SqliteConnection connection)
+    {
+        using var tx = connection.BeginTransaction();
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
+            DELETE FROM TransactionSplits;
+            DELETE FROM Transactions;
+            DELETE FROM ReconciliationHistory;
+            DELETE FROM BudgetEnvelopes;
+            DELETE FROM InvestmentHoldings;
+            DELETE FROM RecurringSchedules;
+            DELETE FROM DebtLiabilities;
+            DELETE FROM SavingsGoals;
+            DELETE FROM CategorizationRules;
+            DELETE FROM Payees;
+            DELETE FROM Accounts;
+            UPDATE Categories SET MonthlyBudget = 0;
+            """;
+        cmd.ExecuteNonQuery();
+        tx.Commit();
+    }
+
+    private static void SeedCategoriesIfEmpty(SqliteConnection connection)
+    {
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.CommandText = "SELECT COUNT(1) FROM Categories;";
+            long count = Convert.ToInt64(checkCmd.ExecuteScalar() ?? 0L);
+            if (count > 0)
+            {
+                return;
+            }
+        }
+
+        const string categoriesSql = """
+            INSERT INTO Categories (Id, Name, ParentId, CategoryType, ColorHex, Icon, MonthlyBudget) VALUES
+                (1, 'Income', NULL, 'Income', '#10B981', 'TrendingUp', 0),
+                (2, 'Housing & Utilities', NULL, 'Expense', '#38BDF8', 'Home', 0),
+                (3, 'Food & Household', NULL, 'Expense', '#F59E0B', 'ShoppingBag', 0),
+                (4, 'Transportation', NULL, 'Expense', '#818CF8', 'Car', 0),
+                (5, 'Giving & Ministry', NULL, 'Expense', '#F472B6', 'Heart', 0),
+                (6, 'Lifestyle & Tech', NULL, 'Expense', '#A78BFA', 'Cpu', 0),
+                (7, 'Transfers & Debt', NULL, 'Transfer', '#94A3B8', 'Repeat', 0),
+                (10, 'Salary & Payroll', 1, 'Income', '#10B981', 'Briefcase', 0),
+                (11, 'Consulting & Advisory', 1, 'Income', '#34D399', 'Award', 0),
+                (12, 'Interest & Dividends', 1, 'Income', '#6EE7B7', 'Percent', 0),
+                (20, 'Mortgage & Rent', 2, 'Expense', '#38BDF8', 'Home', 0),
+                (21, 'Electric & Water', 2, 'Expense', '#0EA5E9', 'Zap', 0),
+                (22, 'Fiber Internet', 2, 'Expense', '#0284C7', 'Wifi', 0),
+                (23, 'Home Maintenance', 2, 'Expense', '#7DD3FC', 'Tool', 0),
+                (30, 'Groceries', 3, 'Expense', '#F59E0B', 'ShoppingCart', 0),
+                (31, 'Coffee & Dining', 3, 'Expense', '#FBBF24', 'Coffee', 0),
+                (32, 'Household Supplies', 3, 'Expense', '#D97706', 'Package', 0),
+                (40, 'Fuel & EV Charging', 4, 'Expense', '#818CF8', 'BatteryCharging', 0),
+                (41, 'Auto Insurance & Service', 4, 'Expense', '#6366F1', 'Shield', 0),
+                (50, 'Parish Tithe & Offerings', 5, 'Expense', '#F472B6', 'Heart', 0),
+                (51, 'Community Charity', 5, 'Expense', '#EC4899', 'Gift', 0),
+                (60, 'Cloud & Software', 6, 'Expense', '#A78BFA', 'Cloud', 0),
+                (61, 'Equipment & Books', 6, 'Expense', '#8B5CF6', 'BookOpen', 0),
+                (62, 'Apparel & Personal', 6, 'Expense', '#C4B5FD', 'User', 0),
+                (70, 'Credit Card Payment', 7, 'Transfer', '#94A3B8', 'CreditCard', 0),
+                (71, 'Savings Transfer', 7, 'Transfer', '#64748B', 'ArrowRightLeft', 0);
+            """;
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = categoriesSql;
+        cmd.ExecuteNonQuery();
     }
 
     private static void EnsurePhase4CColumns(SqliteConnection connection)
@@ -247,6 +367,11 @@ public static class DatabaseInitializer
                 PriorityOrder INTEGER NOT NULL DEFAULT 10,
                 Notes TEXT NULL,
                 FOREIGN KEY (AccountId) REFERENCES Accounts(Id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS WorkspaceSettings (
+                Key TEXT PRIMARY KEY,
+                Value TEXT NOT NULL
             );
 
             CREATE INDEX IF NOT EXISTS IX_Transactions_AccountId_Date ON Transactions(AccountId, TransactionDate);
