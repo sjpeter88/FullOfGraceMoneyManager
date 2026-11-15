@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Full of Grace Money Manager — Workspace</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app-shell">
+    <!-- Workspace Context Header -->
+    <header class="workspace-header">
+      <div class="header-left">
+        <span id="view-kicker" class="kicker-pill">SUNRISE DARK • PHASE 3B</span>
+        <h1 id="view-title">Executive Financial Dashboard</h1>
+        <p id="view-subtitle">Real-time SQLite ledger, guided reconciliation, inline editing &amp; rules engine</p>
+      </div>
+      <div class="header-actions">
+        <div class="view-switcher">
+          <button class="tab-btn active" data-view="Dashboard" onclick="AppBridge.switchView('Dashboard')">Dashboard</button>
+          <button class="tab-btn" data-view="AllTransactions" onclick="AppBridge.switchView('AllTransactions')">Checkbook Register</button>
+          <button class="tab-btn" data-view="Rules" onclick="AppBridge.switchView('Rules')">⚡ Rules Engine</button>
+          <button class="tab-btn" data-view="Budgets" onclick="AppBridge.switchView('Budgets')">🎯 Budgets</button>
+          <button class="tab-btn" data-view="CashFlow" onclick="AppBridge.switchView('CashFlow')">📅 Bills &amp; Cash Flow</button>
+          <button class="tab-btn" data-view="Investments" onclick="AppBridge.switchView('Investments')">📈 Investments</button>
+          <button class="tab-btn" data-view="Reports" onclick="AppBridge.switchView('Reports')">📑 Reports &amp; Export</button>
+        </div>
+        <button class="btn btn-outline" onclick="AppBridge.openReconcileModal()">✓ Reconcile</button>
+        <button class="btn btn-outline" onclick="AppBridge.openImportStudioModal()">📥 Statement Studio</button>
+        <button class="btn btn-gold" onclick="AppBridge.openNewTransactionModal()">＋ Record Transaction</button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic View Container -->
+    <main id="workspace-content" class="workspace-content">
+      <!-- Rendered dynamically by app.js -->
+    </main>
+  </div>
+
+  <!-- 1. New Transaction Modal (Supports Single & Multi-Split Transactions) -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">SQLITE LEDGER ENTRY</span>
+          <h2 id="modal-title">Record New Transaction</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeModal()">✕</button>
+      </div>
+      <form id="tx-form" onsubmit="AppBridge.submitNewTransaction(event)">
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="tx-account">Account</label>
+            <select id="tx-account" required></select>
+          </div>
+          <div class="form-field">
+            <label for="tx-date">Date</label>
+            <input type="date" id="tx-date" required />
+          </div>
+          <div class="form-field">
+            <label for="tx-type">Flow Direction</label>
+            <select id="tx-type" onchange="AppBridge.recalcSplitRemainder()">
+              <option value="payment">Payment / Outflow (−)</option>
+              <option value="deposit">Deposit / Inflow (+)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="tx-amount">Total Amount ($)</label>
+            <input type="number" id="tx-amount" step="0.01" min="0.01" placeholder="0.00" required oninput="AppBridge.recalcSplitRemainder()" />
+          </div>
+          <div class="form-field">
+            <label for="tx-payee">Payee Name</label>
+            <input type="text" id="tx-payee" list="payee-suggestions" placeholder="e.g., Whole Foods Market" required />
+            <datalist id="payee-suggestions"></datalist>
+          </div>
+          <div class="form-field">
+            <label for="tx-category">Primary Category</label>
+            <select id="tx-category"></select>
+          </div>
+          <div class="form-field">
+            <label for="tx-ref">Ref / Check #</label>
+            <input type="text" id="tx-ref" placeholder="ACH, POS, Check #" />
+          </div>
+          <div class="form-field">
+            <label for="tx-status">Status</label>
+            <select id="tx-status">
+              <option value="Uncleared">[ ] Uncleared / Pending</option>
+              <option value="Cleared" selected>[*] Cleared</option>
+              <option value="Reconciled">[R] Reconciled</option>
+            </select>
+          </div>
+          <div class="form-field full-width">
+            <label for="tx-memo">Memo / Notes</label>
+            <input type="text" id="tx-memo" placeholder="Optional transaction description or receipt note" />
+          </div>
+        </div>
+
+        <!-- Optional Split Lines Editor -->
+        <div class="splits-section">
+          <div class="splits-header">
+            <label class="checkbox-label">
+              <input type="checkbox" id="tx-is-split" onchange="AppBridge.toggleSplitEditor(this.checked)" />
+              <span>Enable Multi-Category Split Transaction (TransactionSplits)</span>
+            </label>
+            <button type="button" id="add-split-btn" class="btn btn-outline btn-sm hidden" onclick="AppBridge.addSplitRow()">＋ Add Split Line</button>
+          </div>
+          <div id="splits-container" class="splits-container hidden"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="AppBridge.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-gold">Save to SQLite Ledger</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Statement Import & Multi-Pass Deduplication Studio Modal (OFX / QFX / QIF / CSV) -->
+  <div id="import-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">PHASE 2A • OFX / QFX / QIF / CSV ENGINE</span>
+          <h2>Statement Import, Deduplication &amp; Payee Rules Studio</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeImportStudioModal()">✕</button>
+      </div>
+
+      <div class="import-controls-bar">
+        <div class="form-field" style="min-width:210px;">
+          <label for="import-account">Target Account</label>
+          <select id="import-account" onchange="AppBridge.reparseCurrentSample()"></select>
+        </div>
+
+        <div class="import-action-group">
+          <label class="btn btn-outline btn-sm" style="cursor:pointer;">
+            📂 Upload Local File (.ofx, .qfx, .qif, .csv)
+            <input type="file" id="import-file-input" accept=".ofx,.qfx,.qif,.csv,.txt" style="display:none;" onchange="AppBridge.handleLocalFileUpload(event)" />
+          </label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.browseNativeStatementFile()">🗁 Native WPF File Dialog</button>
+          <span style="color:var(--text-muted); font-size:11px; margin:0 4px;">or test parser with:</span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.loadSampleStatement('OFX')">Sample OFX</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.loadSampleStatement('QIF')">Sample QIF</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.loadSampleStatement('CSV')">Sample CSV</button>
+        </div>
+      </div>
+
+      <div id="import-summary-strip" class="import-summary-strip"></div>
+
+      <div class="ledger-table-wrap" style="max-height: 360px; overflow-y: auto;">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th style="width:36px;">Import</th>
+              <th>Date / FITID</th>
+              <th>Raw Bank String → Normalized Payee</th>
+              <th>Auto-Assigned Category</th>
+              <th>Deduplication &amp; Rule Match</th>
+              <th class="num-col">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="import-preview-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="AppBridge.closeImportStudioModal()">Cancel</button>
+        <button type="button" class="btn btn-gold" onclick="AppBridge.commitSelectedImports()">✓ Commit Selected to SQLite Ledger</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Guided Statement Reconciliation Modal (Phase 2B) -->
+  <div id="reconcile-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <span class="kicker-pill">PHASE 2B • STATEMENT RECONCILIATION WORKFLOW</span>
+          <h2>Guided Bank Statement Reconciliation &amp; Variance Tracker</h2>
+        </div>
+        <button class="icon-close" onclick="AppBridge.closeReconcileModal()">✕</button>
+      </div>
+
+      <!-- Statement Target Inputs -->
+      <div class="import-controls-bar">
+        <div class="form-field" style="min-width:220px;">
+          <label for="rec-account">Account to Reconcile</label>
+          <select id="rec-account" onchange="AppBridge.onReconcileAccountChanged()"></select>
+        </div>
+        <div class="form-field" style="min-width:160px;">
+          <label for="rec-date">Statement Closing Date</label>
+          <input type="date" id="rec-date" />
+        </div>
+        <div class="form-field" style="min-width:190px;">
+          <label for="rec-target-balance">Statement Ending Balance ($)</label>
+          <input type="number" id="rec-target-balance" step="0.01" oninput="AppBridge.recalcReconciliationMath()" />
+        </div>
+        <div class="import-action-group">
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.reconcileCheckAll(true)">☑ Check All</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.reconcileCheckAll(false)">☐ Uncheck All</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.snapStatementTargetToCleared()">🎯 Snap Target to Cleared</button>
+        </div>
+      </div>
+
+      <!-- Real-Time Reconciliation Equation Scoreboard -->
+      <div id="reconcile-scoreboard" class="import-summary-strip"></div>
+
+      <!-- Unreconciled Transactions Check-Off List -->
+      <div class="ledger-table-wrap" style="max-height: 320px; overflow-y: auto;">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th style="width:44px; text-align:center;">Clear</th>
+              <th>Date</th>
+              <th>Ref #</th>
+              <th>Current Status</th>
+              <th>Payee &amp; Memo</th>
+              <th>Category</th>
+              <th class="num-col">Payment (−)</th>
+              <th class="num-col">Deposit (+)</th>
+            </tr>
+          </thead>
+          <tbody id="reconcile-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer" style="justify-content:space-between; align-items:center;">
+        <div id="rec-variance-hint" style="font-size:12px; color:var(--text-secondary);"></div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="AppBridge.closeReconcileModal()">Cancel</button>
+          <button type="button" id="rec-adjust-btn" class="btn btn-outline hidden" onclick="AppBridge.finishReconciliation(true)">⚡ Auto-Adjust Variance &amp; Lock</button>
+          <button type="button" id="rec-finish-btn" class="btn btn-gold" onclick="AppBridge.finishReconciliation(false)">✓ Finish &amp; Lock Reconciled Statement</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-banner" class="toast-banner hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

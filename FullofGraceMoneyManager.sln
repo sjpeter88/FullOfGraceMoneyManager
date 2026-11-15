@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35806.99
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FullofGraceMoneyManager.Desktop", "FullofGraceMoneyManager.Desktop\FullofGraceMoneyManager.Desktop.csproj", "{8F3A4B6C-9D1E-42F7-A5B8-3E2C1D7F9A01}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8F3A4B6C-9D1E-42F7-A5B8-3E2C1D7F9A01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8F3A4B6C-9D1E-42F7-A5B8-3E2C1D7F9A01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8F3A4B6C-9D1E-42F7-A5B8-3E2C1D7F9A01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8F3A4B6C-9D1E-42F7-A5B8-3E2C1D7F9A01}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7A2D9C41-5E8B-4A12-B3C6-9F8E7D6C5B4A}
+	EndGlobalSection
+EndGlobal

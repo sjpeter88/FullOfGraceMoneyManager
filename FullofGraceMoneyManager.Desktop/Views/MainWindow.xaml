@@ -1,0 +1,572 @@
+<Window x:Class="FullofGraceMoneyManager.Desktop.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:models="clr-namespace:FullofGraceMoneyManager.Desktop.Models"
+        xmlns:vm="clr-namespace:FullofGraceMoneyManager.Desktop.ViewModels"
+        mc:Ignorable="d"
+        Title="Full of Grace Money Manager"
+        Width="1480"
+        Height="900"
+        MinWidth="1060"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgDeepSlateBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="Segoe UI">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Sunrise Gold-to-Blue Top Accent Bar -->
+            <RowDefinition Height="3" />
+            <!-- Top Action Toolbar -->
+            <RowDefinition Height="58" />
+            <!-- Main Content Split (Left Sidebar + GridSplitter + Right WebView2 Workspace) -->
+            <RowDefinition Height="*" />
+            <!-- Bottom Status Bar -->
+            <RowDefinition Height="34" />
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: Sunrise Gradient Line -->
+        <Border Grid.Row="0" Background="{StaticResource SunriseHeaderGradientBrush}" />
+
+        <!-- Row 1: Top Action Toolbar -->
+        <Border Grid.Row="1"
+                Background="{StaticResource BgSurfaceBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="280" />
+                </Grid.ColumnDefinitions>
+
+                <!-- App Brand Title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
+                    <Border Width="32" Height="32" CornerRadius="8" Background="{StaticResource SunriseHeaderGradientBrush}" Margin="0,0,10,0">
+                        <TextBlock Text="✦" FontSize="16" FontWeight="Bold" Foreground="#0B0F19" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Full of Grace" FontSize="14.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="MONEY MANAGER • .NET 10" FontSize="9.5" FontWeight="SemiBold" Foreground="{StaticResource AccentGoldBrush}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Quick-Action Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource PrimaryGoldButtonStyle}"
+                            Command="{Binding NewTransactionCommand}"
+                            Content="＋ New Transaction" />
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ImportStatementCommand}"
+                            Content="📥 Import Statement" />
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ReconcileCommand}"
+                            Content="✓ Reconcile" />
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding ToggleBrowserModeCommand}"
+                            Content="🌐 Browser Mode" />
+                    <Button Style="{StaticResource ToolbarButtonStyle}"
+                            Command="{Binding RefreshCommand}"
+                            Content="↻ Refresh" />
+                </StackPanel>
+
+                <!-- Global Search Box -->
+                <Border Grid.Column="2"
+                        Background="{StaticResource BgDeepSlateBrush}"
+                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Height="34"
+                        VerticalAlignment="Center"
+                        Padding="10,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="22" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="🔍"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="Transparent"
+                                 Foreground="{StaticResource TextPrimaryBrush}"
+                                 CaretBrush="{StaticResource AccentGoldBrush}"
+                                 BorderThickness="0"
+                                 VerticalContentAlignment="Center"
+                                 FontSize="12.5"
+                                 ToolTip="Search Payee, Category, Memo, or Split across the register" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Row 2: Main Content Split -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="265" MinWidth="210" MaxWidth="440" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Sidebar -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource BgSurfaceBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- Pinned Net Worth Summary Card -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Navigation Menu -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Account Tree Header -->
+                        <RowDefinition Height="Auto" />
+                        <!-- Account TreeView -->
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 1. Pinned Net Worth Summary Card -->
+                    <Border Grid.Row="0"
+                            Margin="12,12,12,8"
+                            Padding="14,12"
+                            CornerRadius="10"
+                            Background="{StaticResource SunriseCardAccentBrush}"
+                            BorderBrush="#334155"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="NET WORTH SUMMARY"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AccentGoldBrush}"
+                                           DockPanel.Dock="Left" />
+                                <TextBlock Text="LIVE"
+                                           FontSize="9.5"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AccentEmeraldBrush}"
+                                           DockPanel.Dock="Right" />
+                            </DockPanel>
+
+                            <TextBlock Text="{Binding FormattedNetWorth}"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       FontFamily="Consolas"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Margin="0,4,0,8" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="ASSETS" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="{Binding FormattedTotalAssets}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               FontFamily="Consolas"
+                                               Foreground="{StaticResource AccentEmeraldBrush}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="LIABILITIES" FontSize="9.5" Foreground="{StaticResource TextMutedBrush}" />
+                                    <TextBlock Text="{Binding FormattedTotalLiabilities}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               FontFamily="Consolas"
+                                               Foreground="{StaticResource AccentRoseBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 2. Navigation Menu -->
+                    <StackPanel Grid.Row="1" Margin="12,4,12,8">
+                        <TextBlock Text="WORKSPACE NAVIGATION"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="4,0,0,6" />
+                        <ListBox x:Name="NavigationListBox"
+                                 ItemsSource="{Binding NavigationItems}"
+                                 SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="10,7" />
+                                    <Setter Property="Margin" Value="0,1" />
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                    <Setter Property="Cursor" Value="Hand" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="NavBorder"
+                                                        Background="Transparent"
+                                                        CornerRadius="6"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource BgElevatedBrush}" />
+                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="NavBorder" Property="Background" Value="#1E3A5F" />
+                                                        <Setter TargetName="NavBorder" Property="BorderBrush" Value="{StaticResource AccentSkyBlueBrush}" />
+                                                        <Setter TargetName="NavBorder" Property="BorderThickness" Value="1" />
+                                                        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:NavigationMenuItem}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding IconGlyph}" Width="22" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Title}" FontSize="12.5" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+
+                    <!-- 3. Account Tree Header -->
+                    <Border Grid.Row="2"
+                            BorderBrush="{StaticResource BorderSubtleBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="16,10,16,4">
+                        <DockPanel>
+                            <TextBlock Text="ACCOUNTS LEDGER"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       DockPanel.Dock="Left" />
+                            <TextBlock Text="BALANCE"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       DockPanel.Dock="Right" />
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 4. Account Tree Grouped by Banking, Credit Cards, Investments, Assets/Loans -->
+                    <TreeView Grid.Row="3"
+                              x:Name="AccountsTreeView"
+                              ItemsSource="{Binding AccountGroups}"
+                              SelectedItemChanged="AccountsTreeView_OnSelectedItemChanged"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Padding="8,2,8,10"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="True" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter Property="Padding" Value="2,3" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.Resources>
+                            <!-- Group Header Template -->
+                            <HierarchicalDataTemplate DataType="{x:Type models:AccountGroupNode}"
+                                                      ItemsSource="{Binding Accounts}">
+                                <Grid Margin="2,4,6,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding IconGlyph}" Margin="0,0,6,0" FontSize="12" />
+                                        <TextBlock Text="{Binding GroupName}"
+                                                   FontSize="11.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource AccentGoldBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding FormattedGroupTotal}"
+                                               FontSize="11"
+                                               FontFamily="Consolas"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </Grid>
+                            </HierarchicalDataTemplate>
+
+                            <!-- Individual Account Leaf Template -->
+                            <DataTemplate DataType="{x:Type models:Account}">
+                                <Border CornerRadius="5" Padding="6,5" Margin="0,1,4,1" Cursor="Hand" Background="Transparent">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Institution}"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding FormattedBalance}"
+                                                   FontSize="12"
+                                                   FontFamily="Consolas"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentEmeraldBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsNegativeBalance}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentRoseBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </TreeView.Resources>
+                    </TreeView>
+                </Grid>
+            </Border>
+
+            <!-- Resizable GridSplitter -->
+            <GridSplitter Grid.Column="1"
+                          Width="5"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="{StaticResource BgDeepSlateBrush}"
+                          ShowsPreview="True" />
+
+            <!-- Right Workspace (Toggleable Built-in Browser Bar + WebView2 Control) -->
+            <Grid Grid.Column="2" Background="{StaticResource BgDeepSlateBrush}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Toggleable Built-in Web Browser Bar -->
+                <Border Grid.Row="0"
+                        Visibility="{Binding IsBrowserBarVisible, Converter={StaticResource BoolToVis}}"
+                        Background="#172033"
+                        BorderBrush="{StaticResource BorderSubtleBrush}"
+                        BorderThickness="0,0,0,1"
+                        Padding="12,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Navigation Controls -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding BrowserBackCommand}"
+                                    Padding="9,4"
+                                    ToolTip="Back"
+                                    Content="◀" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding BrowserForwardCommand}"
+                                    Padding="9,4"
+                                    ToolTip="Forward"
+                                    Content="▶" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding BrowserReloadCommand}"
+                                    Padding="9,4"
+                                    ToolTip="Reload Page"
+                                    Content="↻" />
+                            <Button Style="{StaticResource PrimaryGoldButtonStyle}"
+                                    Command="{Binding ReturnToAppWorkspaceCommand}"
+                                    Padding="10,4"
+                                    ToolTip="Return to Local App Workspace (https://app.local/index.html)"
+                                    Content="🏠 App Workspace" />
+                        </StackPanel>
+
+                        <!-- URL Input Bar -->
+                        <Border Grid.Column="1"
+                                Background="{StaticResource BgDeepSlateBrush}"
+                                BorderBrush="{StaticResource BorderSubtleBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="4,0,8,0"
+                                Padding="8,0">
+                            <DockPanel>
+                                <TextBlock Text="🔒"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"
+                                           DockPanel.Dock="Left" />
+                                <Button DockPanel.Dock="Right"
+                                        Command="{Binding NavigateBrowserUrlCommand}"
+                                        Background="Transparent"
+                                        Foreground="{StaticResource AccentSkyBlueBrush}"
+                                        BorderThickness="0"
+                                        FontWeight="Bold"
+                                        Cursor="Hand"
+                                        Padding="8,2"
+                                        Content="Go" />
+                                <TextBox Text="{Binding BrowserUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         KeyDown="BrowserUrlTextBox_OnKeyDown"
+                                         Background="Transparent"
+                                         Foreground="{StaticResource TextPrimaryBrush}"
+                                         CaretBrush="{StaticResource AccentSkyBlueBrush}"
+                                         BorderThickness="0"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         VerticalContentAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Quick Banking Portal Shortcuts -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Portals:"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding OpenPortalUrlCommand}"
+                                    CommandParameter="https://www.chase.com"
+                                    Padding="8,4"
+                                    Content="Chase" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding OpenPortalUrlCommand}"
+                                    CommandParameter="https://www.marcus.com"
+                                    Padding="8,4"
+                                    Content="Marcus" />
+                            <Button Style="{StaticResource ToolbarButtonStyle}"
+                                    Command="{Binding OpenPortalUrlCommand}"
+                                    CommandParameter="https://investor.vanguard.com"
+                                    Padding="8,4"
+                                    Margin="0"
+                                    Content="Vanguard" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- WebView2 Host Control -->
+                <wv2:WebView2 Grid.Row="1"
+                              x:Name="WorkspaceWebView"
+                              DefaultBackgroundColor="#0B0F19" />
+            </Grid>
+        </Grid>
+
+        <!-- Row 3: Bottom Status Bar -->
+        <Border Grid.Row="3"
+                Background="#090D16"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Selected Account / Context -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="ACTIVE CONTEXT:"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding StatusContextTitle}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AccentSkyBlueBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Cleared Balance, Pending Total, Ending Balance -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+                        <TextBlock Text="CLEARED BALANCE:"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <TextBlock Text="{Binding FormattedClearedBalance}"
+                                   FontSize="12"
+                                   FontFamily="Consolas"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+                        <TextBlock Text="PENDING TOTAL:"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <TextBlock Text="{Binding FormattedPendingTotal}"
+                                   FontSize="12"
+                                   FontFamily="Consolas"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AccentGoldBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="ENDING BALANCE:"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <TextBlock Text="{Binding FormattedEndingBalance}"
+                                   FontSize="12.5"
+                                   FontFamily="Consolas"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AccentEmeraldBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- SQLite Database Status Indicator -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            ToolTip="{Binding DatabaseFullPath}">
+                    <Ellipse Width="8"
+                             Height="8"
+                             Fill="{StaticResource AccentEmeraldBrush}"
+                             VerticalAlignment="Center"
+                             Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding DatabaseStatusText}"
+                               FontSize="11.5"
+                               FontFamily="Consolas"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
