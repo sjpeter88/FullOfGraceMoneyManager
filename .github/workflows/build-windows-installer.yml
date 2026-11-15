@@ -80,3 +80,14 @@ jobs:
             gh release create $tag @assets --title "Full of Grace Money Manager v1.0.0 (Windows x64)" --notes $notes
           }
 
+      - name: Publish Setup.exe to installer-binary Branch for Cloud Sync
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B installer-binary
+          git add -f dist/FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe
+          git commit -m "Add compiled FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe"
+          git push -f origin installer-binary
+
+
