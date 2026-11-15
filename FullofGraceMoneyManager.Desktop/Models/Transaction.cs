@@ -29,6 +29,28 @@ public class Transaction
     public string? Memo { get; set; }
 
     /// <summary>
+    /// Comma-separated #tags for Phase 4C multi-criteria ledger filtering (e.g. "#TaxDeductible,#Ministry").
+    /// </summary>
+    public string Tags { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional receipt or invoice document reference (e.g. "RCPT-2026-108.PDF" or "INV-412.PDF").
+    /// </summary>
+    public string? ReceiptRef { get; set; }
+
+    /// <summary>
+    /// Optional external bank FITID for statement deduplication and CSV export.
+    /// </summary>
+    public string? ExternalFitId { get; set; }
+
+    public List<string> TagList => string.IsNullOrWhiteSpace(Tags)
+        ? new List<string>()
+        : Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+              .Select(t => t.StartsWith('#') ? t : "#" + t)
+              .Distinct(StringComparer.OrdinalIgnoreCase)
+              .ToList();
+
+    /// <summary>
     /// Signed amount: positive for deposits/inflows, negative for payments/outflows.
     /// </summary>
     public decimal Amount { get; set; }
@@ -50,6 +72,9 @@ public class Transaction
     /// Positive deposit value if Amount &gt; 0, else 0.
     /// </summary>
     public decimal Deposit => Amount > 0 ? Amount : 0m;
+
+    public decimal? PaymentAmount => Amount < 0 ? Math.Abs(Amount) : null;
+    public decimal? DepositAmount => Amount > 0 ? Amount : null;
 
     /// <summary>
     /// Computed chronologically in the ledger register view.

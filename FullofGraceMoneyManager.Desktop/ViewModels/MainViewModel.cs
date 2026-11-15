@@ -99,7 +99,9 @@ public partial class MainViewModel : ObservableObject
         new NavigationMenuItem { Key = "Rules", Title = "Rules Engine", IconGlyph = "⚡" },
         new NavigationMenuItem { Key = "Budgets", Title = "Budgets", IconGlyph = "🎯" },
         new NavigationMenuItem { Key = "CashFlow", Title = "Bills & Cash Flow", IconGlyph = "📅" },
+        new NavigationMenuItem { Key = "SavingsGoals", Title = "Savings Goals", IconGlyph = "🏛️" },
         new NavigationMenuItem { Key = "Investments", Title = "Investments", IconGlyph = "📈" },
+        new NavigationMenuItem { Key = "DebtOptimizer", Title = "Debt & Mortgage", IconGlyph = "🏦" },
         new NavigationMenuItem { Key = "Reports", Title = "Reports", IconGlyph = "📑" },
         new NavigationMenuItem { Key = "WebPortal", Title = "Web Portal", IconGlyph = "🌐" }
     };

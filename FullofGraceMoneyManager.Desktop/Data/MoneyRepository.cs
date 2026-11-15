@@ -444,7 +444,9 @@ public class MoneyRepository
                 t.Memo,
                 t.Amount,
                 t.Status,
-                t.IsSplit
+                t.IsSplit,
+                t.Tags,
+                t.ReceiptRef
             FROM Transactions t
             INNER JOIN Accounts a ON a.Id = t.AccountId
             WHERE (@accountId IS NULL OR t.AccountId = @accountId)
@@ -483,7 +485,9 @@ public class MoneyRepository
                     Memo = reader.IsDBNull(8) ? null : reader.GetString(8),
                     Amount = reader.GetDecimal(9),
                     Status = reader.GetString(10),
-                    IsSplit = isSplit
+                    IsSplit = isSplit,
+                    Tags = reader.IsDBNull(12) ? string.Empty : reader.GetString(12),
+                    ReceiptRef = reader.IsDBNull(13) ? null : reader.GetString(13)
                 });
             }
         }
@@ -550,6 +554,8 @@ public class MoneyRepository
                 t.CategoryName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 (t.Memo?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (t.ReferenceNumber?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                t.Tags.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                (t.ReceiptRef?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 t.Splits.Any(s =>
                     s.CategoryName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                     (s.Memo?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false))
@@ -570,7 +576,9 @@ public class MoneyRepository
         decimal signedAmount,
         string status = TransactionStatus.Uncleared,
         string? referenceNumber = null,
-        List<Split>? splits = null)
+        List<Split>? splits = null,
+        string? tags = null,
+        string? receiptRef = null)
     {
         using var conn = new SqliteConnection(_connectionString);
         conn.Open();
@@ -612,11 +620,11 @@ public class MoneyRepository
         cmd.CommandText = """
             INSERT INTO Transactions (
                 AccountId, TransactionDate, ReferenceNumber, PayeeId, PayeeName,
-                CategoryId, Memo, Amount, Status, IsSplit
+                CategoryId, Memo, Tags, ReceiptRef, Amount, Status, IsSplit
             )
             VALUES (
                 @accountId, @date, @refNum, @payeeId, @payeeName,
-                @catId, @memo, @amount, @status, @isSplit
+                @catId, @memo, @tags, @receiptRef, @amount, @status, @isSplit
             );
             SELECT last_insert_rowid();
             """;
@@ -630,6 +638,8 @@ public class MoneyRepository
         cmd.Parameters.AddWithValue("@payeeName", payeeName.Trim());
         cmd.Parameters.AddWithValue("@catId", categoryId.HasValue ? categoryId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@memo", string.IsNullOrWhiteSpace(memo) ? DBNull.Value : memo.Trim());
+        cmd.Parameters.AddWithValue("@tags", NormalizeTagsString(tags));
+        cmd.Parameters.AddWithValue("@receiptRef", string.IsNullOrWhiteSpace(receiptRef) ? DBNull.Value : receiptRef.Trim());
         cmd.Parameters.AddWithValue("@amount", signedAmount);
         cmd.Parameters.AddWithValue("@status", string.IsNullOrWhiteSpace(status) ? TransactionStatus.Uncleared : status);
         cmd.Parameters.AddWithValue("@isSplit", isSplit ? 1 : 0);
@@ -668,7 +678,9 @@ public class MoneyRepository
         int? categoryId,
         string? memo,
         decimal signedAmount,
-        string status)
+        string status,
+        string? tags = null,
+        string? receiptRef = null)
     {
         using var conn = new SqliteConnection(_connectionString);
         conn.Open();
@@ -712,6 +724,8 @@ public class MoneyRepository
                 PayeeName = @payeeName,
                 CategoryId = CASE WHEN IsSplit = 1 THEN CategoryId ELSE @catId END,
                 Memo = @memo,
+                Tags = COALESCE(@tags, Tags),
+                ReceiptRef = @receiptRef,
                 Amount = @amount,
                 Status = @status
             WHERE Id = @id;
@@ -725,12 +739,29 @@ public class MoneyRepository
         cmd.Parameters.AddWithValue("@payeeName", payeeName.Trim());
         cmd.Parameters.AddWithValue("@catId", categoryId.HasValue ? categoryId.Value : DBNull.Value);
         cmd.Parameters.AddWithValue("@memo", string.IsNullOrWhiteSpace(memo) ? DBNull.Value : memo.Trim());
+        cmd.Parameters.AddWithValue("@tags", tags is null ? DBNull.Value : NormalizeTagsString(tags));
+        cmd.Parameters.AddWithValue("@receiptRef", string.IsNullOrWhiteSpace(receiptRef) ? DBNull.Value : receiptRef.Trim());
         cmd.Parameters.AddWithValue("@amount", signedAmount);
         cmd.Parameters.AddWithValue("@status", string.IsNullOrWhiteSpace(status) ? TransactionStatus.Uncleared : status.Trim());
         cmd.Parameters.AddWithValue("@id", transactionId);
         cmd.ExecuteNonQuery();
 
         dbTx.Commit();
+    }
+
+    private static string NormalizeTagsString(string? rawTags)
+    {
+        if (string.IsNullOrWhiteSpace(rawTags))
+        {
+            return string.Empty;
+        }
+
+        var parts = rawTags
+            .Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p.StartsWith('#') ? p : "#" + p)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        return string.Join(",", parts);
     }
 
     public void DeleteTransaction(int transactionId)
@@ -1938,7 +1969,7 @@ public class MoneyRepository
     {
         var transactions = GetTransactions();
         var sb = new StringBuilder();
-        sb.AppendLine("Id,Date,Account,ReferenceNumber,Status,Payee,Category,Memo,Payment,Deposit,SignedAmount,RunningBalance,ExternalFitId");
+        sb.AppendLine("Id,Date,Account,ReferenceNumber,Status,Payee,Category,Memo,Tags,ReceiptRef,Payment,Deposit,SignedAmount,RunningBalance,ExternalFitId");
 
         foreach (var tx in transactions)
         {
@@ -1956,6 +1987,8 @@ public class MoneyRepository
                 CsvEscape(tx.PayeeName),
                 CsvEscape(tx.CategoryName),
                 CsvEscape(tx.Memo),
+                CsvEscape(tx.Tags),
+                CsvEscape(tx.ReceiptRef),
                 payment,
                 deposit,
                 signed,
@@ -2013,6 +2046,514 @@ public class MoneyRepository
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         });
+    }
+
+    public DebtPayoffWorkspaceSummary GetDebtPayoffSummary(string strategyMode = "Avalanche")
+    {
+        bool isSnowball = string.Equals(strategyMode, "Snowball", StringComparison.OrdinalIgnoreCase);
+        var liabilities = new List<DebtLiabilityProfile>();
+
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        const string sql = """
+            SELECT
+                Id,
+                AccountId,
+                LiabilityName,
+                LenderInstitution,
+                LiabilityType,
+                CurrentBalance,
+                InterestRateApr,
+                MinimumMonthlyPayment,
+                EscrowAndTaxesMonthly,
+                ExtraPrincipalMonthly,
+                OriginalPrincipal
+            FROM DebtLiabilities
+            ORDER BY Id ASC;
+            """;
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = sql;
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                liabilities.Add(new DebtLiabilityProfile
+                {
+                    Id = reader.GetInt32(0),
+                    AccountId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    LiabilityName = reader.GetString(2),
+                    LenderInstitution = reader.GetString(3),
+                    LiabilityType = reader.GetString(4),
+                    CurrentBalance = reader.GetDecimal(5),
+                    InterestRateApr = reader.GetDecimal(6),
+                    MinimumMonthlyPayment = reader.GetDecimal(7),
+                    EscrowAndTaxesMonthly = reader.GetDecimal(8),
+                    ExtraPrincipalMonthly = reader.GetDecimal(9),
+                    OriginalPrincipal = reader.GetDecimal(10)
+                });
+            }
+        }
+
+        var ordered = isSnowball
+            ? liabilities.OrderBy(x => x.CurrentBalance).ThenByDescending(x => x.InterestRateApr).ToList()
+            : liabilities.OrderByDescending(x => x.InterestRateApr).ThenBy(x => x.CurrentBalance).ToList();
+
+        decimal totalPrincipal = 0m;
+        decimal weightedAprNumerator = 0m;
+        decimal totalMinPayment = 0m;
+        decimal totalExtraPrincipal = 0m;
+        decimal baselineTotalInterest = 0m;
+        decimal acceleratedTotalInterest = 0m;
+        int maxBaselineMonths = 0;
+        int maxAcceleratedMonths = 0;
+
+        var referenceDate = new DateTime(2026, 12, 1);
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            var item = ordered[i];
+            item.PayoffPriorityOrder = i + 1;
+
+            var (baseMonths, baseInt) = SimulateSingleDebt(
+                item.CurrentBalance,
+                item.InterestRateApr,
+                item.MinimumMonthlyPayment,
+                0m);
+
+            var (accMonths, accInt) = SimulateSingleDebt(
+                item.CurrentBalance,
+                item.InterestRateApr,
+                item.MinimumMonthlyPayment,
+                item.ExtraPrincipalMonthly);
+
+            item.PayoffMonthsBaseline = baseMonths;
+            item.TotalInterestBaseline = baseInt;
+            item.PayoffMonthsAccelerated = accMonths;
+            item.TotalInterestAccelerated = accInt;
+            item.ProjectedPayoffDate = referenceDate.AddMonths(Math.Max(1, accMonths)).ToString("MMM yyyy");
+
+            totalPrincipal += item.CurrentBalance;
+            weightedAprNumerator += item.CurrentBalance * item.InterestRateApr;
+            totalMinPayment += item.MinimumMonthlyPayment;
+            totalExtraPrincipal += item.ExtraPrincipalMonthly;
+            baselineTotalInterest += baseInt;
+            acceleratedTotalInterest += accInt;
+            if (baseMonths > maxBaselineMonths) maxBaselineMonths = baseMonths;
+            if (accMonths > maxAcceleratedMonths) maxAcceleratedMonths = accMonths;
+        }
+
+        var schedule = BuildCombinedAmortizationSchedule(ordered, referenceDate, maxRows: 24);
+        decimal weightedApr = totalPrincipal > 0m
+            ? Math.Round(weightedAprNumerator / totalPrincipal, 2)
+            : 0m;
+
+        return new DebtPayoffWorkspaceSummary
+        {
+            StrategyMode = isSnowball ? "Snowball" : "Avalanche",
+            TotalDebtPrincipal = totalPrincipal,
+            WeightedAverageApr = weightedApr,
+            TotalMinimumMonthlyPayment = totalMinPayment,
+            TotalExtraPrincipalMonthly = totalExtraPrincipal,
+            BaselineTotalInterest = baselineTotalInterest,
+            AcceleratedTotalInterest = acceleratedTotalInterest,
+            BaselineMonthsToDebtFree = maxBaselineMonths,
+            AcceleratedMonthsToDebtFree = maxAcceleratedMonths,
+            ProjectedDebtFreeDate = referenceDate.AddMonths(Math.Max(1, maxAcceleratedMonths)).ToString("MMM yyyy"),
+            Liabilities = ordered,
+            AmortizationSchedule = schedule
+        };
+    }
+
+    private static (int Months, decimal TotalInterest) SimulateSingleDebt(
+        decimal balance,
+        decimal apr,
+        decimal minPayment,
+        decimal extraPrincipal)
+    {
+        if (balance <= 0m) return (0, 0m);
+
+        decimal monthlyRate = apr / 100m / 12m;
+        decimal effectivePayment = Math.Max(minPayment + extraPrincipal, balance * monthlyRate + 10m);
+        decimal rem = balance;
+        decimal totalInterest = 0m;
+        int months = 0;
+
+        while (rem > 0.01m && months < 480)
+        {
+            months++;
+            decimal interest = Math.Round(rem * monthlyRate, 2);
+            decimal principal = effectivePayment - interest;
+            if (principal <= 0m)
+            {
+                principal = 10m;
+            }
+            if (principal > rem)
+            {
+                principal = rem;
+            }
+
+            rem = Math.Max(0m, rem - principal);
+            totalInterest += interest;
+        }
+
+        return (months, Math.Round(totalInterest, 2));
+    }
+
+    private static List<AmortizationScheduleEntry> BuildCombinedAmortizationSchedule(
+        List<DebtLiabilityProfile> orderedLiabilities,
+        DateTime startDate,
+        int maxRows)
+    {
+        var schedule = new List<AmortizationScheduleEntry>();
+        var balances = orderedLiabilities.Select(x => x.CurrentBalance).ToArray();
+        decimal cumulativeInterest = 0m;
+
+        for (int m = 1; m <= maxRows; m++)
+        {
+            decimal startingTotal = balances.Sum();
+            if (startingTotal <= 0.01m)
+            {
+                break;
+            }
+
+            decimal monthMinTotal = 0m;
+            decimal monthExtraTotal = 0m;
+            decimal monthInterestTotal = 0m;
+            decimal monthPrincipalTotal = 0m;
+            decimal rolloverPool = 0m;
+
+            for (int i = 0; i < orderedLiabilities.Count; i++)
+            {
+                var d = orderedLiabilities[i];
+                if (balances[i] <= 0.01m)
+                {
+                    rolloverPool += d.MinimumMonthlyPayment + d.ExtraPrincipalMonthly;
+                    continue;
+                }
+
+                decimal rate = d.InterestRateApr / 100m / 12m;
+                decimal interest = Math.Round(balances[i] * rate, 2);
+                decimal minPay = Math.Min(balances[i] + interest, d.MinimumMonthlyPayment);
+                decimal extraPay = d.ExtraPrincipalMonthly + rolloverPool;
+                rolloverPool = 0m;
+
+                decimal totalPay = minPay + extraPay;
+                if (totalPay > balances[i] + interest)
+                {
+                    decimal unused = totalPay - (balances[i] + interest);
+                    rolloverPool += unused;
+                    totalPay = balances[i] + interest;
+                    extraPay = Math.Max(0m, totalPay - minPay);
+                }
+
+                decimal principal = Math.Max(0m, totalPay - interest);
+                balances[i] = Math.Max(0m, balances[i] - principal);
+
+                monthMinTotal += minPay;
+                monthExtraTotal += extraPay;
+                monthInterestTotal += interest;
+                monthPrincipalTotal += principal;
+            }
+
+            cumulativeInterest += monthInterestTotal;
+            schedule.Add(new AmortizationScheduleEntry
+            {
+                MonthIndex = m,
+                MonthDate = startDate.AddMonths(m - 1).ToString("yyyy-MM"),
+                StartingBalance = Math.Round(startingTotal, 2),
+                ScheduledMinimumPayment = Math.Round(monthMinTotal, 2),
+                ExtraPrincipalPayment = Math.Round(monthExtraTotal, 2),
+                InterestPaid = Math.Round(monthInterestTotal, 2),
+                PrincipalPaid = Math.Round(monthPrincipalTotal, 2),
+                EndingBalance = Math.Round(balances.Sum(), 2),
+                CumulativeInterestPaid = Math.Round(cumulativeInterest, 2)
+            });
+        }
+
+        return schedule;
+    }
+
+    public void UpdateDebtLiability(
+        int id,
+        decimal currentBalance,
+        decimal interestRateApr,
+        decimal minimumMonthlyPayment,
+        decimal extraPrincipalMonthly)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE DebtLiabilities
+            SET CurrentBalance = @bal,
+                InterestRateApr = @apr,
+                MinimumMonthlyPayment = @minPay,
+                ExtraPrincipalMonthly = @extraPay
+            WHERE Id = @id;
+            """;
+        cmd.Parameters.AddWithValue("@bal", Math.Max(0m, currentBalance));
+        cmd.Parameters.AddWithValue("@apr", Math.Max(0m, interestRateApr));
+        cmd.Parameters.AddWithValue("@minPay", Math.Max(0m, minimumMonthlyPayment));
+        cmd.Parameters.AddWithValue("@extraPay", Math.Max(0m, extraPrincipalMonthly));
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public DebtLiabilityProfile CreateDebtLiability(DebtLiabilityProfile liability)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO DebtLiabilities (
+                AccountId, LiabilityName, LenderInstitution, LiabilityType,
+                CurrentBalance, InterestRateApr, MinimumMonthlyPayment,
+                EscrowAndTaxesMonthly, ExtraPrincipalMonthly, OriginalPrincipal
+            )
+            VALUES (
+                @accId, @name, @lender, @type,
+                @bal, @apr, @minPay,
+                @escrow, @extraPay, @orig
+            );
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("@accId", liability.AccountId.HasValue ? liability.AccountId.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@name", liability.LiabilityName.Trim());
+        cmd.Parameters.AddWithValue("@lender", string.IsNullOrWhiteSpace(liability.LenderInstitution) ? "Private Lender" : liability.LenderInstitution.Trim());
+        cmd.Parameters.AddWithValue("@type", string.IsNullOrWhiteSpace(liability.LiabilityType) ? "Loan" : liability.LiabilityType.Trim());
+        cmd.Parameters.AddWithValue("@bal", Math.Max(0m, liability.CurrentBalance));
+        cmd.Parameters.AddWithValue("@apr", Math.Max(0m, liability.InterestRateApr));
+        cmd.Parameters.AddWithValue("@minPay", Math.Max(0m, liability.MinimumMonthlyPayment));
+        cmd.Parameters.AddWithValue("@escrow", Math.Max(0m, liability.EscrowAndTaxesMonthly));
+        cmd.Parameters.AddWithValue("@extraPay", Math.Max(0m, liability.ExtraPrincipalMonthly));
+        cmd.Parameters.AddWithValue("@orig", Math.Max(liability.CurrentBalance, liability.OriginalPrincipal));
+
+        int newId = Convert.ToInt32(cmd.ExecuteScalar());
+        return GetDebtPayoffSummary().Liabilities.First(x => x.Id == newId);
+    }
+
+    public void DeleteDebtLiability(int id)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM DebtLiabilities WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    // =========================================================================
+    // Phase 4B: Savings Goals & Sinking Funds Planner
+    // =========================================================================
+    public SavingsGoalsWorkspaceSummary GetSavingsGoalsSummary()
+    {
+        var accounts = GetAccountsWithBalances();
+        var hysa = accounts.FirstOrDefault(a => a.Id == 2) ?? accounts.FirstOrDefault();
+        decimal hysaBalance = hysa?.CurrentBalance ?? 29362.40m;
+
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT
+                g.Id, g.AccountId, a.Name || ' ' || a.AccountNumberMask AS AccountLabel,
+                g.Name, g.CategoryGroup, g.IconGlyph, g.ColorHex,
+                g.TargetAmount, g.CurrentSavedAmount, g.MonthlyContributionTarget,
+                g.TargetDate, g.PriorityOrder, g.Notes
+            FROM SavingsGoals g
+            LEFT JOIN Accounts a ON a.Id = g.AccountId
+            ORDER BY g.PriorityOrder ASC, g.Id ASC;
+            """;
+
+        var goals = new List<SavingsGoal>();
+        var anchorDate = new DateTime(2026, 11, 15);
+
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            decimal target = reader.GetDecimal(7);
+            decimal saved = reader.GetDecimal(8);
+            decimal monthlyPlan = reader.GetDecimal(9);
+            string targetDateStr = reader.GetString(10);
+
+            DateTime parsedTarget = DateTime.TryParse(targetDateStr, out var dt)
+                ? dt
+                : anchorDate.AddMonths(12);
+
+            int monthsUntilTarget = Math.Max(1, ((parsedTarget.Year - anchorDate.Year) * 12) + (parsedTarget.Month - anchorDate.Month));
+            decimal remaining = Math.Max(0m, target - saved);
+            decimal requiredMonthly = remaining <= 0m
+                ? 0m
+                : Math.Round(remaining / monthsUntilTarget, 2);
+
+            int monthsAtCurrentPlan = remaining <= 0m
+                ? 0
+                : (monthlyPlan > 0m ? (int)Math.Ceiling(remaining / monthlyPlan) : 99);
+
+            string projectedLabel = remaining <= 0m
+                ? "Fully Funded ✓"
+                : anchorDate.AddMonths(monthsAtCurrentPlan).ToString("MMM yyyy");
+
+            string badge = remaining <= 0m
+                ? "Fully Funded"
+                : (monthlyPlan >= requiredMonthly ? "On Track" : "Needs Boost");
+
+            goals.Add(new SavingsGoal
+            {
+                Id = reader.GetInt32(0),
+                AccountId = reader.GetInt32(1),
+                AccountName = reader.IsDBNull(2) ? "High-Yield Savings ••9014" : reader.GetString(2),
+                Name = reader.GetString(3),
+                CategoryGroup = reader.GetString(4),
+                IconGlyph = reader.GetString(5),
+                ColorHex = reader.GetString(6),
+                TargetAmount = target,
+                CurrentSavedAmount = saved,
+                MonthlyContributionTarget = monthlyPlan,
+                TargetDate = targetDateStr,
+                PriorityOrder = reader.GetInt32(11),
+                Notes = reader.IsDBNull(12) ? string.Empty : reader.GetString(12),
+                MonthsRemaining = remaining <= 0m ? 0 : monthsUntilTarget,
+                RequiredMonthlyToHitTargetDate = requiredMonthly,
+                ProjectedCompletionDate = projectedLabel,
+                StatusBadge = badge
+            });
+        }
+
+        return new SavingsGoalsWorkspaceSummary
+        {
+            HighYieldSavingsBalance = hysaBalance,
+            TotalTargetAmount = goals.Sum(g => g.TargetAmount),
+            TotalCurrentSaved = goals.Sum(g => g.CurrentSavedAmount),
+            TotalMonthlyContributionPlan = goals.Sum(g => g.MonthlyContributionTarget),
+            TotalRequiredMonthlyForDeadlines = goals.Sum(g => g.RequiredMonthlyToHitTargetDate),
+            FullyFundedCount = goals.Count(g => g.RemainingAmount <= 0m),
+            OnTrackCount = goals.Count(g => g.StatusBadge == "On Track" || g.StatusBadge == "Fully Funded"),
+            Goals = goals
+        };
+    }
+
+    public void UpdateSavingsGoal(
+        int id,
+        decimal targetAmount,
+        decimal currentSavedAmount,
+        decimal monthlyContributionTarget,
+        string targetDate)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE SavingsGoals
+            SET TargetAmount = @target,
+                CurrentSavedAmount = @saved,
+                MonthlyContributionTarget = @monthly,
+                TargetDate = @targetDate
+            WHERE Id = @id;
+            """;
+        cmd.Parameters.AddWithValue("@target", Math.Max(0m, targetAmount));
+        cmd.Parameters.AddWithValue("@saved", Math.Max(0m, currentSavedAmount));
+        cmd.Parameters.AddWithValue("@monthly", Math.Max(0m, monthlyContributionTarget));
+        cmd.Parameters.AddWithValue("@targetDate", string.IsNullOrWhiteSpace(targetDate) ? "2027-06-01" : targetDate.Trim());
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public SavingsGoal? RecordSavingsGoalContribution(int goalId, decimal contributionAmount, bool recordLedgerTransfer)
+    {
+        if (contributionAmount <= 0m)
+        {
+            return null;
+        }
+
+        var summary = GetSavingsGoalsSummary();
+        var goal = summary.Goals.FirstOrDefault(g => g.Id == goalId);
+        if (goal == null)
+        {
+            return null;
+        }
+
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                UPDATE SavingsGoals
+                SET CurrentSavedAmount = CurrentSavedAmount + @amt
+                WHERE Id = @id;
+                """;
+            cmd.Parameters.AddWithValue("@amt", contributionAmount);
+            cmd.Parameters.AddWithValue("@id", goalId);
+            cmd.ExecuteNonQuery();
+        }
+
+        if (recordLedgerTransfer)
+        {
+            string today = DateTime.Today.ToString("yyyy-MM-dd");
+            CreateTransaction(
+                accountId: goal.AccountId,
+                transactionDate: today,
+                payeeName: $"Sinking Fund Allocation — {goal.Name}",
+                categoryId: 71,
+                memo: $"Phase 4B Sinking Fund Contribution to '{goal.Name}'",
+                signedAmount: contributionAmount,
+                status: TransactionStatus.Cleared,
+                referenceNumber: "GOAL-XFER");
+        }
+
+        return GetSavingsGoalsSummary().Goals.FirstOrDefault(g => g.Id == goalId);
+    }
+
+    public SavingsGoal CreateSavingsGoal(SavingsGoal goal)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO SavingsGoals (
+                AccountId, Name, CategoryGroup, IconGlyph, ColorHex,
+                TargetAmount, CurrentSavedAmount, MonthlyContributionTarget,
+                TargetDate, PriorityOrder, Notes
+            )
+            VALUES (
+                @accId, @name, @grp, @icon, @color,
+                @target, @saved, @monthly,
+                @targetDate, @prio, @notes
+            );
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("@accId", goal.AccountId <= 0 ? 2 : goal.AccountId);
+        cmd.Parameters.AddWithValue("@name", goal.Name.Trim());
+        cmd.Parameters.AddWithValue("@grp", string.IsNullOrWhiteSpace(goal.CategoryGroup) ? "Sinking Fund" : goal.CategoryGroup.Trim());
+        cmd.Parameters.AddWithValue("@icon", string.IsNullOrWhiteSpace(goal.IconGlyph) ? "🎯" : goal.IconGlyph.Trim());
+        cmd.Parameters.AddWithValue("@color", string.IsNullOrWhiteSpace(goal.ColorHex) ? "#38BDF8" : goal.ColorHex.Trim());
+        cmd.Parameters.AddWithValue("@target", Math.Max(1m, goal.TargetAmount));
+        cmd.Parameters.AddWithValue("@saved", Math.Max(0m, goal.CurrentSavedAmount));
+        cmd.Parameters.AddWithValue("@monthly", Math.Max(0m, goal.MonthlyContributionTarget));
+        cmd.Parameters.AddWithValue("@targetDate", string.IsNullOrWhiteSpace(goal.TargetDate) ? "2027-06-01" : goal.TargetDate.Trim());
+        cmd.Parameters.AddWithValue("@prio", goal.PriorityOrder <= 0 ? 50 : goal.PriorityOrder);
+        cmd.Parameters.AddWithValue("@notes", string.IsNullOrWhiteSpace(goal.Notes) ? DBNull.Value : goal.Notes.Trim());
+
+        int newId = Convert.ToInt32(cmd.ExecuteScalar());
+        return GetSavingsGoalsSummary().Goals.First(g => g.Id == newId);
+    }
+
+    public void DeleteSavingsGoal(int id)
+    {
+        using var conn = new SqliteConnection(_connectionString);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM SavingsGoals WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
     }
 
     private static string CsvEscape(string? value)

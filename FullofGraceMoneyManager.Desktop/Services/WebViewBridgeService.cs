@@ -20,6 +20,7 @@ public class WebViewBridgeService
     private readonly StatementParserService _parserService = new();
     private readonly RulesAndDeduplicationService _rulesAndDedupService = new();
     private bool _isReady;
+    private string _debtStrategyMode = "Avalanche";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -98,6 +99,8 @@ public class WebViewBridgeService
         var portfolioSummary = _repository.GetInvestmentPortfolioSummary();
         var recurringSummary = _repository.GetRecurringCashFlowSummary();
         var reportSummary = _repository.GetExecutiveReportSummary();
+        var debtSummary = _repository.GetDebtPayoffSummary(_debtStrategyMode);
+        var savingsGoalsSummary = _repository.GetSavingsGoalsSummary();
 
         var payload = new
         {
@@ -111,6 +114,8 @@ public class WebViewBridgeService
             portfolioSummary,
             recurringSummary,
             reportSummary,
+            debtSummary,
+            savingsGoalsSummary,
             accounts,
             categories,
             payees,
@@ -439,6 +444,56 @@ public class WebViewBridgeService
                         contentGenerator: () => _repository.ExportFullWorkspaceJsonBackup());
                     break;
 
+                case "setDebtStrategy":
+                    if (root.TryGetProperty("strategyMode", out var stratEl) && stratEl.ValueKind == JsonValueKind.String)
+                    {
+                        string mode = stratEl.GetString() ?? "Avalanche";
+                        _debtStrategyMode = string.Equals(mode, "Snowball", StringComparison.OrdinalIgnoreCase)
+                            ? "Snowball"
+                            : "Avalanche";
+                        PushStateToWebView();
+                        PushToast($"Switched debt payoff cascade to {_debtStrategyMode} strategy.");
+                    }
+                    break;
+
+                case "updateDebtLiability":
+                    HandleUpdateDebtLiability(root);
+                    break;
+
+                case "createDebtLiability":
+                    HandleCreateDebtLiability(root);
+                    break;
+
+                case "deleteDebtLiability":
+                    if (root.TryGetProperty("liabilityId", out var delDebtEl) && delDebtEl.TryGetInt32(out int delDebtId))
+                    {
+                        _repository.DeleteDebtLiability(delDebtId);
+                        _viewModel.ReloadData(notifyWebView: true);
+                        PushToast($"Deleted debt profile #{delDebtId}.");
+                    }
+                    break;
+
+                case "updateSavingsGoal":
+                    HandleUpdateSavingsGoal(root);
+                    break;
+
+                case "contributeSavingsGoal":
+                    HandleContributeSavingsGoal(root);
+                    break;
+
+                case "createSavingsGoal":
+                    HandleCreateSavingsGoal(root);
+                    break;
+
+                case "deleteSavingsGoal":
+                    if (root.TryGetProperty("goalId", out var delGoalEl) && delGoalEl.TryGetInt32(out int delGoalId))
+                    {
+                        _repository.DeleteSavingsGoal(delGoalId);
+                        _viewModel.ReloadData(notifyWebView: true);
+                        PushToast($"Deleted savings goal #{delGoalId}.");
+                    }
+                    break;
+
                 case "openExternalPortal":
                     if (root.TryGetProperty("url", out var urlProp))
                     {
@@ -455,6 +510,102 @@ public class WebViewBridgeService
         {
             PushToast($"Bridge warning: {ex.Message}");
         }
+    }
+
+    private void HandleUpdateSavingsGoal(JsonElement root)
+    {
+        if (!root.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out int id))
+        {
+            return;
+        }
+
+        decimal target = root.TryGetProperty("targetAmount", out var tEl) && tEl.TryGetDecimal(out decimal parsedTarget)
+            ? parsedTarget
+            : 0m;
+        decimal saved = root.TryGetProperty("currentSavedAmount", out var sEl) && sEl.TryGetDecimal(out decimal parsedSaved)
+            ? parsedSaved
+            : 0m;
+        decimal monthly = root.TryGetProperty("monthlyContributionTarget", out var mEl) && mEl.TryGetDecimal(out decimal parsedMonthly)
+            ? parsedMonthly
+            : 0m;
+        string targetDate = root.TryGetProperty("targetDate", out var dEl) && dEl.ValueKind == JsonValueKind.String
+            ? (dEl.GetString() ?? "2027-06-01")
+            : "2027-06-01";
+
+        _repository.UpdateSavingsGoal(id, target, saved, monthly, targetDate);
+        _viewModel.ReloadData(notifyWebView: true);
+        PushToast($"Updated savings goal #{id} (Saved: {saved:C2} / Target: {target:C2}).");
+    }
+
+    private void HandleContributeSavingsGoal(JsonElement root)
+    {
+        if (!root.TryGetProperty("goalId", out var idEl) || !idEl.TryGetInt32(out int goalId))
+        {
+            return;
+        }
+
+        decimal amount = root.TryGetProperty("amount", out var amtEl) && amtEl.TryGetDecimal(out decimal parsedAmt)
+            ? parsedAmt
+            : 250m;
+        bool recordTransfer = !root.TryGetProperty("recordLedgerTransfer", out var recEl) || recEl.ValueKind != JsonValueKind.False;
+
+        var updated = _repository.RecordSavingsGoalContribution(goalId, amount, recordTransfer);
+        _viewModel.ReloadData(notifyWebView: true);
+        if (updated != null)
+        {
+            PushToast($"Allocated +{amount:C2} to '{updated.Name}' ({updated.ProgressPercent:N1}% funded).");
+        }
+    }
+
+    private void HandleCreateSavingsGoal(JsonElement root)
+    {
+        var goal = JsonSerializer.Deserialize<SavingsGoal>(root.GetRawText(), JsonOptions);
+        if (goal == null || string.IsNullOrWhiteSpace(goal.Name))
+        {
+            return;
+        }
+
+        var created = _repository.CreateSavingsGoal(goal);
+        _viewModel.ReloadData(notifyWebView: true);
+        PushToast($"Created sinking fund '{created.Name}' ({created.CurrentSavedAmount:C2} / {created.TargetAmount:C2}).");
+    }
+
+    private void HandleUpdateDebtLiability(JsonElement root)
+    {
+        if (!root.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out int id))
+        {
+            return;
+        }
+
+        decimal balance = root.TryGetProperty("currentBalance", out var balEl) && balEl.TryGetDecimal(out decimal parsedBal)
+            ? parsedBal
+            : 0m;
+        decimal apr = root.TryGetProperty("interestRateApr", out var aprEl) && aprEl.TryGetDecimal(out decimal parsedApr)
+            ? parsedApr
+            : 0m;
+        decimal minPayment = root.TryGetProperty("minimumMonthlyPayment", out var minEl) && minEl.TryGetDecimal(out decimal parsedMin)
+            ? parsedMin
+            : 0m;
+        decimal extraPrincipal = root.TryGetProperty("extraPrincipalMonthly", out var extEl) && extEl.TryGetDecimal(out decimal parsedExt)
+            ? parsedExt
+            : 0m;
+
+        _repository.UpdateDebtLiability(id, balance, apr, minPayment, extraPrincipal);
+        _viewModel.ReloadData(notifyWebView: true);
+        PushToast($"Updated debt liability #{id} (+{extraPrincipal:C2}/mo extra principal).");
+    }
+
+    private void HandleCreateDebtLiability(JsonElement root)
+    {
+        var profile = JsonSerializer.Deserialize<DebtLiabilityProfile>(root.GetRawText(), JsonOptions);
+        if (profile == null || string.IsNullOrWhiteSpace(profile.Name))
+        {
+            return;
+        }
+
+        var created = _repository.CreateDebtLiability(profile);
+        _viewModel.ReloadData(notifyWebView: true);
+        PushToast($"Added debt profile '{created.Name}' ({created.CurrentBalance:C2} @ {created.InterestRateApr:N2}% APR).");
     }
 
     private void HandleExportFile(string title, string defaultFileName, string filter, Func<string> contentGenerator)
@@ -709,6 +860,14 @@ public class WebViewBridgeService
             ? memoEl.GetString()
             : null;
 
+        string? tags = root.TryGetProperty("tags", out var tagsEl) && tagsEl.ValueKind == JsonValueKind.String
+            ? tagsEl.GetString()
+            : null;
+
+        string? receiptRef = root.TryGetProperty("receiptRef", out var receiptEl) && receiptEl.ValueKind == JsonValueKind.String
+            ? receiptEl.GetString()
+            : null;
+
         string? refNum = root.TryGetProperty("referenceNumber", out var refEl) && refEl.ValueKind == JsonValueKind.String
             ? refEl.GetString()
             : null;
@@ -758,7 +917,9 @@ public class WebViewBridgeService
             signedAmount: amount,
             status: status,
             referenceNumber: refNum,
-            splits: splits);
+            splits: splits,
+            tags: tags,
+            receiptRef: receiptRef);
 
         _viewModel.ReloadData(notifyWebView: true);
         PushToast($"Saved transaction for {payeeName} ({amount:C2})");
@@ -795,6 +956,14 @@ public class WebViewBridgeService
             ? memoEl.GetString()
             : null;
 
+        string? tags = root.TryGetProperty("tags", out var tagsEl) && tagsEl.ValueKind == JsonValueKind.String
+            ? tagsEl.GetString()
+            : null;
+
+        string? receiptRef = root.TryGetProperty("receiptRef", out var receiptEl) && receiptEl.ValueKind == JsonValueKind.String
+            ? receiptEl.GetString()
+            : null;
+
         decimal amount = root.TryGetProperty("amount", out var amtEl) && amtEl.TryGetDecimal(out decimal parsedAmt)
             ? parsedAmt
             : 0m;
@@ -811,7 +980,9 @@ public class WebViewBridgeService
             categoryId: categoryId,
             memo: memo,
             signedAmount: amount,
-            status: status);
+            status: status,
+            tags: tags,
+            receiptRef: receiptRef);
 
         _viewModel.ReloadData(notifyWebView: true);
         PushToast($"Updated transaction #{txId} ({payeeName})");

@@ -1,0 +1,82 @@
+name: Build Windows Installer (.exe & Portable .zip)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    name: Build .NET 10 WPF Setup.exe & Portable ZIP
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10.0 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'ga'
+
+      - name: Ensure Inno Setup 6 is Installed
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Publish Self-Contained Windows x64 Application & Build Setup.exe
+        shell: pwsh
+        run: |
+          ./build-installer.ps1 -SelfContained
+
+      - name: Upload Windows Setup Installer (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullOfGraceMoneyManager-Setup-win-x64
+          path: dist/FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe
+          if-no-files-found: warn
+
+      - name: Upload Windows Portable Bundle (.zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FullOfGraceMoneyManager-Portable-win-x64
+          path: dist/FullOfGraceMoneyManager-v1.0.0-win-x64-Portable.zip
+
+      - name: Publish GitHub Release v1.0.0 with Installer Assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "v1.0.0"
+          $assets = @()
+          if (Test-Path "dist/FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe") {
+            $assets += "dist/FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe"
+          }
+          if (Test-Path "dist/FullOfGraceMoneyManager-v1.0.0-win-x64-Portable.zip") {
+            $assets += "dist/FullOfGraceMoneyManager-v1.0.0-win-x64-Portable.zip"
+          }
+          if (Test-Path "FullOfGraceMoneyManager-v1.0.0-Windows-Installer.zip") {
+            $assets += "FullOfGraceMoneyManager-v1.0.0-Windows-Installer.zip"
+          }
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber
+          } else {
+            $notes = @(
+              "Complete Windows x64 release of **Full of Grace Money Manager** (Phases 1 through 4C).",
+              "",
+              "### Download Options",
+              "1. **FullOfGraceMoneyManager-Setup-v1.0.0-win-x64.exe** - Self-contained native Windows Setup Wizard (includes .NET 10 runtime, Desktop & Start Menu shortcuts, and pre-seeded SQLite database).",
+              "2. **FullOfGraceMoneyManager-v1.0.0-win-x64-Portable.zip** - Self-contained portable Windows x64 folder (extract anywhere and run FullofGraceMoneyManager.Desktop.exe).",
+              "3. **FullOfGraceMoneyManager-v1.0.0-Windows-Installer.zip** - Lightweight 1-click installer bundle (install-full-of-grace.bat & Launch-FullOfGrace-EdgeApp.bat)."
+            ) -join "`n"
+            gh release create $tag @assets --title "Full of Grace Money Manager v1.0.0 (Windows x64)" --notes $notes
+          }
+

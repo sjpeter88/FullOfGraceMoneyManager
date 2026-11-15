@@ -11,7 +11,7 @@
     <!-- Workspace Context Header -->
     <header class="workspace-header">
       <div class="header-left">
-        <span id="view-kicker" class="kicker-pill">SUNRISE DARK • PHASE 3B</span>
+        <span id="view-kicker" class="kicker-pill">SUNRISE DARK • PHASE 4B</span>
         <h1 id="view-title">Executive Financial Dashboard</h1>
         <p id="view-subtitle">Real-time SQLite ledger, guided reconciliation, inline editing &amp; rules engine</p>
       </div>
@@ -22,7 +22,9 @@
           <button class="tab-btn" data-view="Rules" onclick="AppBridge.switchView('Rules')">⚡ Rules Engine</button>
           <button class="tab-btn" data-view="Budgets" onclick="AppBridge.switchView('Budgets')">🎯 Budgets</button>
           <button class="tab-btn" data-view="CashFlow" onclick="AppBridge.switchView('CashFlow')">📅 Bills &amp; Cash Flow</button>
+          <button class="tab-btn" data-view="SavingsGoals" onclick="AppBridge.switchView('SavingsGoals')">🏛️ Savings Goals</button>
           <button class="tab-btn" data-view="Investments" onclick="AppBridge.switchView('Investments')">📈 Investments</button>
+          <button class="tab-btn" data-view="DebtOptimizer" onclick="AppBridge.switchView('DebtOptimizer')">🏦 Debt &amp; Mortgage</button>
           <button class="tab-btn" data-view="Reports" onclick="AppBridge.switchView('Reports')">📑 Reports &amp; Export</button>
         </div>
         <button class="btn btn-outline" onclick="AppBridge.openReconcileModal()">✓ Reconcile</button>
@@ -92,6 +94,14 @@
           <div class="form-field full-width">
             <label for="tx-memo">Memo / Notes</label>
             <input type="text" id="tx-memo" placeholder="Optional transaction description or receipt note" />
+          </div>
+          <div class="form-field">
+            <label for="tx-tags">Tags (Comma-separated #Tags)</label>
+            <input type="text" id="tx-tags" placeholder="#TaxDeductible, #Ministry, #Reimbursable, #Family" />
+          </div>
+          <div class="form-field">
+            <label for="tx-receipt">Receipt / Invoice Ref #</label>
+            <input type="text" id="tx-receipt" placeholder="RCPT-2026-108.PDF or INV-412.PDF" />
           </div>
         </div>
 

@@ -11,6 +11,11 @@ const AppBridge = (() => {
     selectedAccount: null,
     searchQuery: "",
     statusFilter: "ALL",
+    tagFilter: "ALL",
+    categoryFilter: "ALL",
+    minAmountFilter: "",
+    maxAmountFilter: "",
+    onlyWithReceiptFilter: false,
     expandedSplitIds: { 4: true, 8: true },
     editingTransactionId: null,
     activeSampleFormat: "OFX",
@@ -113,6 +118,20 @@ const AppBridge = (() => {
       { id: 8, accountId: 1, accountName: "Primary Checking", payeeName: "Sonic Fiber Telecom", categoryId: 22, categoryName: "Housing & Utilities:Fiber Internet", frequency: "Monthly", nextDueDate: "2026-12-14", amount: -79.99, isAutoPay: true, isActive: true, memo: "10Gbps fiber internet autopay" }
     ],
     reportSummary: null,
+    debtStrategyMode: "Avalanche",
+    debtSummary: null,
+    debtLiabilities: [
+      { id: 1, accountId: 6, name: "Home Residence Mortgage ••1108", institution: "Rocket Mortgage", categoryType: "Mortgage", originalPrincipal: 245000.00, currentBalance: 218400.00, interestRateApr: 5.375, minimumMonthlyPayment: 1375.85, extraPrincipalMonthly: 250.00, remainingTermMonths: 312, nextDueDate: "2026-12-01", escrowMonthly: 469.15, notes: "30-yr fixed conventional mortgage (5.375% APR) + $469.15/mo tax & hazard escrow" },
+      { id: 2, accountId: null, name: "Family Hybrid SUV Auto Note ••8419", institution: "Toyota Financial Services", categoryType: "Auto Loan", originalPrincipal: 28500.00, currentBalance: 14250.00, interestRateApr: 4.49, minimumMonthlyPayment: 468.20, extraPrincipalMonthly: 150.00, remainingTermMonths: 33, nextDueDate: "2026-11-24", escrowMonthly: 0.00, notes: "60-month hybrid SUV note — accelerated principal payoff target" },
+      { id: 3, accountId: 3, name: "Rewards Visa Statement Balance ••7390", institution: "Chase Sapphire Reserve", categoryType: "Credit Card", originalPrincipal: 1200.00, currentBalance: 424.40, interestRateApr: 21.99, minimumMonthlyPayment: 85.00, extraPrincipalMonthly: 339.40, remainingTermMonths: 6, nextDueDate: "2026-11-28", escrowMonthly: 0.00, notes: "Paid in full monthly via grace-period statement autopay" }
+    ],
+    savingsGoalsSummary: null,
+    savingsGoals: [
+      { id: 1, accountId: 2, accountName: "High-Yield Savings ••9014", name: "6-Month Household Emergency Reserve", categoryGroup: "Emergency & Reserves", iconGlyph: "🛡️", colorHex: "#10B981", targetAmount: 24000.00, currentSavedAmount: 18500.00, monthlyContributionTarget: 750.00, targetDate: "2027-06-01", priorityOrder: 10, notes: "Core 6-month operating expense safety net in Marcus 4.65% APY" },
+      { id: 2, accountId: 2, accountName: "High-Yield Savings ••9014", name: "Next Family Vehicle Cash Sinking Fund", categoryGroup: "Major Purchases", iconGlyph: "🚗", colorHex: "#38BDF8", targetAmount: 15000.00, currentSavedAmount: 4800.00, monthlyContributionTarget: 550.00, targetDate: "2028-03-01", priorityOrder: 20, notes: "Debt-free down payment & replacement reserve" },
+      { id: 3, accountId: 2, accountName: "High-Yield Savings ••9014", name: "Rome & Assisi Jubilee Pilgrimage", categoryGroup: "Family & Ministry", iconGlyph: "⛪", colorHex: "#F59E0B", targetAmount: 6500.00, currentSavedAmount: 3462.40, monthlyContributionTarget: 400.00, targetDate: "2027-05-01", priorityOrder: 30, notes: "Airfare, lodging & parish pilgrimage fund" },
+      { id: 4, accountId: 2, accountName: "High-Yield Savings ••9014", name: "Property Tax & Roof Sinking Reserve", categoryGroup: "Home & Escrow", iconGlyph: "🏡", colorHex: "#A78BFA", targetAmount: 5000.00, currentSavedAmount: 2600.00, monthlyContributionTarget: 300.00, targetDate: "2027-04-01", priorityOrder: 40, notes: "Supplemental home maintenance & annual county assessment buffer" }
+    ],
     payees: [
       { id: 1, name: "Grace Sovereign Systems Payroll" },
       { id: 2, name: "St. Mary Parish Stewardship" },
@@ -136,23 +155,23 @@ const AppBridge = (() => {
       { id: 8, name: "Grace Sovereign Direct Deposit", priority: 80, isEnabled: true, matchField: "Payee", matchOperator: "Contains", matchPattern: "GRACE SOVEREIGN", minAmount: 500.00, maxAmount: null, renamePayeeTo: "Grace Sovereign Systems Payroll", assignCategoryId: 10, assignCategoryName: "Income:Salary & Payroll", setStatus: "Cleared" }
     ],
     transactions: [
-      { id: 10, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-14", referenceNumber: "ACH-992", payeeName: "Sonic Fiber Telecom", categoryId: 22, categoryName: "Housing & Utilities:Fiber Internet", memo: "November gigabit fiber service", amount: -79.99, payment: 79.99, deposit: 0, runningBalance: 5030.81, status: "Uncleared", isSplit: false, splits: [] },
-      { id: 9, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-13", referenceNumber: "POS-334", payeeName: "Whole Foods Market", categoryId: 30, categoryName: "Food & Household:Groceries", memo: "Fresh produce, poultry & bakery", amount: -138.45, payment: 138.45, deposit: 0, runningBalance: 5110.80, status: "Uncleared", isSplit: false, splits: [] },
-      { id: 8, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-11", referenceNumber: "Split", payeeName: "Target Superstore", categoryId: 32, categoryName: "-- Split Transaction --", memo: "Home essentials, books & winter coat", amount: -164.80, payment: 164.80, deposit: 0, runningBalance: 5249.25, status: "Cleared", isSplit: true, splits: [
+      { id: 10, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-14", referenceNumber: "ACH-992", payeeName: "Sonic Fiber Telecom", categoryId: 22, categoryName: "Housing & Utilities:Fiber Internet", memo: "November gigabit fiber service", tags: "#FixedBill,#Reimbursable", receiptRef: "SONIC-INV-992.PDF", amount: -79.99, payment: 79.99, deposit: 0, runningBalance: 5030.81, status: "Uncleared", isSplit: false, splits: [] },
+      { id: 9, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-13", referenceNumber: "POS-334", payeeName: "Whole Foods Market", categoryId: 30, categoryName: "Food & Household:Groceries", memo: "Fresh produce, poultry & bakery", tags: "#Family", receiptRef: "WFM-POS-334.JPG", amount: -138.45, payment: 138.45, deposit: 0, runningBalance: 5110.80, status: "Uncleared", isSplit: false, splits: [] },
+      { id: 8, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-11", referenceNumber: "Split", payeeName: "Target Superstore", categoryId: 32, categoryName: "-- Split Transaction --", memo: "Home essentials, books & winter coat", tags: "#Family,#Education", receiptRef: "TARGET-1111-SPLIT.JPG", amount: -164.80, payment: 164.80, deposit: 0, runningBalance: 5249.25, status: "Cleared", isSplit: true, splits: [
         { id: 3, categoryName: "Food & Household:Household Supplies", memo: "Household cleaning supplies", amount: -44.80 },
         { id: 4, categoryName: "Lifestyle & Tech:Equipment & Books", memo: "Technical reference books", amount: -45.00 },
         { id: 5, categoryName: "Lifestyle & Tech:Apparel & Personal", memo: "Kids warm fleece jacket", amount: -75.00 }
       ] },
-      { id: 7, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-10", referenceNumber: "XFER-88", payeeName: "Chase Card Services Transfer", categoryId: 70, categoryName: "Transfers & Debt:Credit Card Payment", memo: "Payment to Rewards Visa ••7390", amount: -500.00, payment: 500.00, deposit: 0, runningBalance: 5414.05, status: "Cleared", isSplit: false, splits: [] },
-      { id: 6, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-08", referenceNumber: "INV-412", payeeName: "Lighthouse Advisory Partners", categoryId: 11, categoryName: "Income:Consulting & Advisory", memo: "Q4 FinTech architecture milestone", amount: 1250.00, payment: 0, deposit: 1250.00, runningBalance: 5914.05, status: "Cleared", isSplit: false, splits: [] },
-      { id: 5, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-06", referenceNumber: "ACH-215", payeeName: "Pacific Gas & Electric", categoryId: 21, categoryName: "Housing & Utilities:Electric & Water", memo: "Autumn utility cycle statement", amount: -142.35, payment: 142.35, deposit: 0, runningBalance: 4664.05, status: "Cleared", isSplit: false, splits: [] },
-      { id: 4, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-05", referenceNumber: "Split", payeeName: "Costco Wholesale", categoryId: 30, categoryName: "-- Split Transaction --", memo: "Monthly bulk pantry + household stockup", amount: -248.60, payment: 248.60, deposit: 0, runningBalance: 4806.40, status: "Cleared", isSplit: true, splits: [
+      { id: 7, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-10", referenceNumber: "XFER-88", payeeName: "Chase Card Services Transfer", categoryId: 70, categoryName: "Transfers & Debt:Credit Card Payment", memo: "Payment to Rewards Visa ••7390", tags: "#InternalTransfer", receiptRef: null, amount: -500.00, payment: 500.00, deposit: 0, runningBalance: 5414.05, status: "Cleared", isSplit: false, splits: [] },
+      { id: 6, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-08", referenceNumber: "INV-412", payeeName: "Lighthouse Advisory Partners", categoryId: 11, categoryName: "Income:Consulting & Advisory", memo: "Q4 FinTech architecture milestone", tags: "#1099Income,#Advisory", receiptRef: "INV-412-SIGNED.PDF", amount: 1250.00, payment: 0, deposit: 1250.00, runningBalance: 5914.05, status: "Cleared", isSplit: false, splits: [] },
+      { id: 5, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-06", referenceNumber: "ACH-215", payeeName: "Pacific Gas & Electric", categoryId: 21, categoryName: "Housing & Utilities:Electric & Water", memo: "Autumn utility cycle statement", tags: "#FixedBill", receiptRef: "PGE-2026-11.PDF", amount: -142.35, payment: 142.35, deposit: 0, runningBalance: 4664.05, status: "Cleared", isSplit: false, splits: [] },
+      { id: 4, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-05", referenceNumber: "Split", payeeName: "Costco Wholesale", categoryId: 30, categoryName: "-- Split Transaction --", memo: "Monthly bulk pantry + household stockup", tags: "#Family,#BulkStockup", receiptRef: "COSTCO-WHSE-1105.JPG", amount: -248.60, payment: 248.60, deposit: 0, runningBalance: 4806.40, status: "Cleared", isSplit: true, splits: [
         { id: 1, categoryName: "Food & Household:Groceries", memo: "Costco organic groceries & meat", amount: -168.60 },
         { id: 2, categoryName: "Food & Household:Household Supplies", memo: "Paper towels, detergent & kitchenware", amount: -80.00 }
       ] },
-      { id: 3, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-03", referenceNumber: "ACH-108", payeeName: "St. Mary Parish Stewardship", categoryId: 50, categoryName: "Giving & Ministry:Parish Tithe & Offerings", memo: "Firstfruits monthly parish offering", amount: -550.00, payment: 550.00, deposit: 0, runningBalance: 5055.00, status: "Reconciled", isSplit: false, splits: [] },
-      { id: 2, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-02", referenceNumber: "ACH-104", payeeName: "Rocket Mortgage Servicing", categoryId: 20, categoryName: "Housing & Utilities:Mortgage & Rent", memo: "November principal, interest & escrow", amount: -1845.00, payment: 1845.00, deposit: 0, runningBalance: 5605.00, status: "Reconciled", isSplit: false, splits: [] },
-      { id: 1, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-01", referenceNumber: "DD-901", payeeName: "Grace Sovereign Systems Payroll", categoryId: 10, categoryName: "Income:Salary & Payroll", memo: "Bi-weekly net salary direct deposit", amount: 3650.00, payment: 0, deposit: 3650.00, runningBalance: 7450.00, status: "Reconciled", isSplit: false, splits: [] }
+      { id: 3, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-03", referenceNumber: "ACH-108", payeeName: "St. Mary Parish Stewardship", categoryId: 50, categoryName: "Giving & Ministry:Parish Tithe & Offerings", memo: "Firstfruits monthly parish offering", tags: "#TaxDeductible,#Ministry", receiptRef: "RCPT-STMARY-1103.PDF", amount: -550.00, payment: 550.00, deposit: 0, runningBalance: 5055.00, status: "Reconciled", isSplit: false, splits: [] },
+      { id: 2, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-02", referenceNumber: "ACH-104", payeeName: "Rocket Mortgage Servicing", categoryId: 20, categoryName: "Housing & Utilities:Mortgage & Rent", memo: "November principal, interest & escrow", tags: "#FixedBill,#TaxEscrow", receiptRef: "STMT-MORT-1126.PDF", amount: -1845.00, payment: 1845.00, deposit: 0, runningBalance: 5605.00, status: "Reconciled", isSplit: false, splits: [] },
+      { id: 1, accountId: 1, accountName: "Primary Checking", transactionDate: "2026-11-01", referenceNumber: "DD-901", payeeName: "Grace Sovereign Systems Payroll", categoryId: 10, categoryName: "Income:Salary & Payroll", memo: "Bi-weekly net salary direct deposit", tags: "#Payroll,#W2Income", receiptRef: "PAYSTUB-2026-22.PDF", amount: 3650.00, payment: 0, deposit: 3650.00, runningBalance: 7450.00, status: "Reconciled", isSplit: false, splits: [] }
     ]
   };
 
@@ -239,10 +258,18 @@ const AppBridge = (() => {
       kickerEl.textContent = "PHASE 3A • RECURRING BILLS & LIQUIDITY FORECAST";
       titleEl.textContent = "Recurring Bills, Subscriptions & 30-Day Cash-Flow Projection";
       subtitleEl.textContent = "Upcoming scheduled transactions, 1-click register posting, and 30-day checking low-water-mark forecast";
+    } else if (state.activeView === "SavingsGoals") {
+      kickerEl.textContent = "PHASE 4B • SAVINGS GOALS & SINKING FUNDS PLANNER";
+      titleEl.textContent = "Savings Goals & Sinking Funds Planner (Emergency, Vehicle, Pilgrimage & Escrow)";
+      subtitleEl.textContent = "Target dates, required monthly funding math, visual progress rings, and 1-click High-Yield Savings contribution transfers";
     } else if (state.activeView === "Investments") {
       kickerEl.textContent = "PHASE 2D • PORTFOLIO & ASSET ALLOCATION";
       titleEl.textContent = "Investment Portfolio & IPS Rebalancing Tracker";
       subtitleEl.textContent = "Taxable index brokerage and 401(k) holdings, cost basis, unrealized gain/loss, and policy target drift";
+    } else if (state.activeView === "DebtOptimizer") {
+      kickerEl.textContent = "PHASE 4A • DEBT PAYOFF & MORTGAGE AMORTIZATION OPTIMIZER";
+      titleEl.textContent = "Debt Payoff & Mortgage Amortization Optimizer (Avalanche vs. Snowball)";
+      subtitleEl.textContent = "Compare Avalanche (Highest APR) vs. Snowball (Smallest Balance), model extra monthly principal, and inspect 24-month rollover amortization";
     } else if (state.activeView === "Reports") {
       kickerEl.textContent = "PHASE 3B • EXECUTIVE REPORTS, TAX RECEIPTS & DATA EXPORT";
       titleEl.textContent = "Executive P&L Statement, Stewardship Tax Summary & Data Export";
@@ -252,7 +279,7 @@ const AppBridge = (() => {
       titleEl.textContent = "Online Banking Statement Portals";
       subtitleEl.textContent = "Launch institution portals directly in the right pane to download OFX/QFX/CSV statements";
     } else {
-      kickerEl.textContent = "SUNRISE DARK • PHASE 3B";
+      kickerEl.textContent = "SUNRISE DARK • PHASE 4B";
       titleEl.textContent = "Executive Financial Dashboard";
       subtitleEl.textContent = "Live SQLite net worth aggregation, monthly cash flow & hierarchical category breakdown";
     }
@@ -470,6 +497,54 @@ const AppBridge = (() => {
     return `<span class="status-badge status-uncleared" title="Click to cycle status" onclick="AppBridge.cycleStatus(${tx.id})">[ ] Uncleared</span>`;
   }
 
+  function parseTagList(rawTags) {
+    if (!rawTags || typeof rawTags !== "string") return [];
+    return rawTags
+      .split(/[,;\s]+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => (t.startsWith("#") ? t : `#${t}`));
+  }
+
+  function getTagColorStyle(tag) {
+    const lower = tag.toLowerCase();
+    if (lower.includes("tax") || lower.includes("ministry")) {
+      return "background:rgba(244,114,182,0.14); color:#F472B6; border:1px solid rgba(244,114,182,0.35);";
+    }
+    if (lower.includes("reimburs") || lower.includes("advisory") || lower.includes("1099")) {
+      return "background:rgba(245,158,11,0.14); color:#FBBF24; border:1px solid rgba(245,158,11,0.35);";
+    }
+    if (lower.includes("payroll") || lower.includes("w2") || lower.includes("yield")) {
+      return "background:rgba(16,185,129,0.14); color:#34D399; border:1px solid rgba(16,185,129,0.35);";
+    }
+    if (lower.includes("fixed") || lower.includes("escrow")) {
+      return "background:rgba(56,189,248,0.14); color:#38BDF8; border:1px solid rgba(56,189,248,0.35);";
+    }
+    return "background:rgba(167,139,250,0.14); color:#C4B5FD; border:1px solid rgba(167,139,250,0.35);";
+  }
+
+  function renderTagAndReceiptBadges(tx) {
+    const tags = parseTagList(tx.tags);
+    const tagPills = tags.map((tag) => {
+      const isSelected = state.tagFilter.toLowerCase() === tag.toLowerCase();
+      return `<button type="button" onclick="event.stopPropagation(); AppBridge.setTagFilter('${escapeHtml(isSelected ? "ALL" : tag)}')"
+                title="Click to filter register by ${escapeHtml(tag)}"
+                style="cursor:pointer; font-family:var(--font-mono); font-size:10px; font-weight:600; padding:1px 6px; border-radius:999px; ${getTagColorStyle(tag)} ${isSelected ? 'box-shadow:0 0 0 1px #F8FAFC;' : ''}">
+                ${escapeHtml(tag)}
+              </button>`;
+    }).join("");
+
+    const receiptBadge = tx.receiptRef
+      ? `<span title="Attached Receipt / Statement Reference: ${escapeHtml(tx.receiptRef)}"
+               style="font-family:var(--font-mono); font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(148,163,184,0.14); color:#E2E8F0; border:1px solid rgba(148,163,184,0.3);">
+           📎 ${escapeHtml(tx.receiptRef)}
+         </span>`
+      : "";
+
+    if (!tagPills && !receiptBadge) return "";
+    return `<div style="display:flex; gap:5px; flex-wrap:wrap; align-items:center; margin-top:4px;">${tagPills}${receiptBadge}</div>`;
+  }
+
   function renderQuickEntryRow() {
     const today = new Date().toISOString().slice(0, 10);
     const catOptions = state.categories.map((c) =>
@@ -487,9 +562,11 @@ const AppBridge = (() => {
           </select>
         </td>
         <td>
-          <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:6px;">
+          <div style="display:grid; grid-template-columns:1.1fr 0.9fr 0.85fr 0.75fr; gap:5px;">
             <input type="text" id="qe-payee" class="inline-input" placeholder="Quick-Add Payee..." />
             <input type="text" id="qe-memo" class="inline-input" placeholder="Memo..." />
+            <input type="text" id="qe-tags" class="inline-input" placeholder="#Tag1,#Tag2" />
+            <input type="text" id="qe-receipt" class="inline-input" placeholder="📎 Receipt #" />
           </div>
         </td>
         <td><select id="qe-category" class="inline-select">${catOptions}</select></td>
@@ -524,9 +601,11 @@ const AppBridge = (() => {
           </select>
         </td>
         <td>
-          <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:6px;">
+          <div style="display:grid; grid-template-columns:1.1fr 0.9fr 0.85fr 0.75fr; gap:5px;">
             <input type="text" id="edit-payee-${tx.id}" class="inline-input" value="${escapeHtml(tx.payeeName)}" />
             <input type="text" id="edit-memo-${tx.id}" class="inline-input" value="${escapeHtml(tx.memo || "")}" placeholder="Memo" />
+            <input type="text" id="edit-tags-${tx.id}" class="inline-input" value="${escapeHtml(tx.tags || "")}" placeholder="#Tags" />
+            <input type="text" id="edit-receipt-${tx.id}" class="inline-input" value="${escapeHtml(tx.receiptRef || "")}" placeholder="📎 Receipt #" />
           </div>
         </td>
         <td>
@@ -546,21 +625,91 @@ const AppBridge = (() => {
   }
 
   function renderRegisterSection(isCompactPreview = false) {
-    let rows = state.transactions || [];
+    const allRows = state.transactions || [];
+    let rows = [...allRows];
+
     if (state.statusFilter !== "ALL") {
       rows = rows.filter((t) => t.status === state.statusFilter);
+    }
+    if (state.tagFilter && state.tagFilter !== "ALL") {
+      const targetTag = state.tagFilter.toLowerCase();
+      rows = rows.filter((t) =>
+        parseTagList(t.tags).some((tg) => tg.toLowerCase() === targetTag)
+      );
+    }
+    if (state.categoryFilter && state.categoryFilter !== "ALL") {
+      const targetCatId = Number(state.categoryFilter);
+      rows = rows.filter((t) =>
+        t.categoryId === targetCatId ||
+        (Array.isArray(t.splits) && t.splits.some((s) => s.categoryId === targetCatId))
+      );
+    }
+    if (state.minAmountFilter !== "" && !Number.isNaN(Number(state.minAmountFilter))) {
+      const minAbs = Math.abs(Number(state.minAmountFilter));
+      rows = rows.filter((t) => Math.abs(Number(t.amount || 0)) >= minAbs);
+    }
+    if (state.maxAmountFilter !== "" && !Number.isNaN(Number(state.maxAmountFilter))) {
+      const maxAbs = Math.abs(Number(state.maxAmountFilter));
+      rows = rows.filter((t) => Math.abs(Number(t.amount || 0)) <= maxAbs);
+    }
+    if (state.onlyWithReceiptFilter) {
+      rows = rows.filter((t) => Boolean(t.receiptRef && String(t.receiptRef).trim() !== ""));
     }
     if (state.searchQuery && state.searchQuery.trim() !== "") {
       const q = state.searchQuery.trim().toLowerCase();
       rows = rows.filter((t) =>
         (t.payeeName || "").toLowerCase().includes(q) ||
         (t.categoryName || "").toLowerCase().includes(q) ||
-        (t.memo || "").toLowerCase().includes(q)
+        (t.memo || "").toLowerCase().includes(q) ||
+        (t.referenceNumber || "").toLowerCase().includes(q) ||
+        (t.tags || "").toLowerCase().includes(q) ||
+        (t.receiptRef || "").toLowerCase().includes(q)
       );
     }
+
+    const totalFilteredCount = rows.length;
+    const filteredInflows = rows.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const filteredOutflows = rows.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const filteredNet = filteredInflows - filteredOutflows;
+
     if (isCompactPreview) {
       rows = rows.slice(0, 8);
     }
+
+    // Build dynamic tag cloud counts across allRows
+    const tagCountMap = {};
+    allRows.forEach((tx) => {
+      parseTagList(tx.tags).forEach((tg) => {
+        tagCountMap[tg] = (tagCountMap[tg] || 0) + 1;
+      });
+    });
+    const featuredTags = ["#TaxDeductible", "#Ministry", "#Reimbursable", "#FixedBill", "#Family", "#1099Income", "#Payroll"];
+    Object.keys(tagCountMap).forEach((tg) => {
+      if (!featuredTags.some((f) => f.toLowerCase() === tg.toLowerCase())) {
+        featuredTags.push(tg);
+      }
+    });
+
+    const tagFilterButtonsHtml = featuredTags
+      .filter((tg) => (tagCountMap[tg] || 0) > 0 || state.tagFilter.toLowerCase() === tg.toLowerCase())
+      .map((tg) => {
+        const active = state.tagFilter.toLowerCase() === tg.toLowerCase();
+        const cnt = tagCountMap[tg] || 0;
+        return `<button type="button" class="filter-pill ${active ? 'active' : ''}" onclick="AppBridge.setTagFilter('${escapeHtml(active ? "ALL" : tg)}')">${escapeHtml(tg)} (${cnt})</button>`;
+      }).join("");
+
+    const categoryFilterOptionsHtml = state.categories.map((c) =>
+      `<option value="${c.id}" ${String(state.categoryFilter) === String(c.id) ? "selected" : ""}>${escapeHtml(c.fullPath || c.name)}</option>`
+    ).join("");
+
+    const hasActiveCustomFilter =
+      state.statusFilter !== "ALL" ||
+      state.tagFilter !== "ALL" ||
+      state.categoryFilter !== "ALL" ||
+      state.minAmountFilter !== "" ||
+      state.maxAmountFilter !== "" ||
+      state.onlyWithReceiptFilter ||
+      Boolean(state.searchQuery && state.searchQuery.trim());
 
     let tableBodyHtml = isCompactPreview ? "" : renderQuickEntryRow();
 
@@ -591,6 +740,7 @@ const AppBridge = (() => {
               ${state.selectedAccountId ? "" : `<span style="color:var(--accent-blue)">[${escapeHtml(tx.accountName)}]</span> `}
               ${escapeHtml(tx.memo || "")}
             </div>
+            ${renderTagAndReceiptBadges(tx)}
           </td>
           <td>${categoryCell}</td>
           <td class="num-col ${paymentVal > 0 ? 'amount-negative' : ''}">${paymentVal > 0 ? fmtCurrency(paymentVal) : ""}</td>
@@ -624,11 +774,11 @@ const AppBridge = (() => {
       }
     });
 
-    if (!rows.length && isCompactPreview) {
-      tableBodyHtml = `
+    if (!rows.length) {
+      tableBodyHtml += `
         <tr>
           <td colspan="9" style="text-align:center; padding:28px; color:var(--text-muted);">
-            No transactions match the active filter criteria.
+            No transactions match the active multi-criteria filter. <button type="button" class="btn btn-outline btn-sm" style="margin-left:8px;" onclick="AppBridge.resetRegisterFilters()">Reset Filters</button>
           </td>
         </tr>
       `;
@@ -642,12 +792,12 @@ const AppBridge = (() => {
               ${isCompactPreview ? "Recent Checkbook Register Activity" : "Interactive Checkbook Ledger Register"}
             </div>
             <div class="panel-subtitle">
-              Double-click any row (or click ✎) to edit inline • Enter commits, Esc cancels • Click ✓ Reconcile Statement for $0.00 variance wizard
+              Double-click any row (or click ✎) to edit Payee, Memo, #Tags &amp; 📎 Receipt Ref inline • Click any #Tag pill to filter
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <div class="filter-pills">
-              <button class="filter-pill ${state.statusFilter === 'ALL' ? 'active' : ''}" onclick="AppBridge.setStatusFilter('ALL')">All (${state.transactions.length})</button>
+              <button class="filter-pill ${state.statusFilter === 'ALL' ? 'active' : ''}" onclick="AppBridge.setStatusFilter('ALL')">All (${allRows.length})</button>
               <button class="filter-pill ${state.statusFilter === 'Uncleared' ? 'active' : ''}" onclick="AppBridge.setStatusFilter('Uncleared')">Uncleared</button>
               <button class="filter-pill ${state.statusFilter === 'Cleared' ? 'active' : ''}" onclick="AppBridge.setStatusFilter('Cleared')">Cleared</button>
               <button class="filter-pill ${state.statusFilter === 'Reconciled' ? 'active' : ''}" onclick="AppBridge.setStatusFilter('Reconciled')">Reconciled</button>
@@ -657,6 +807,47 @@ const AppBridge = (() => {
           </div>
         </div>
 
+        <!-- Phase 4C: Multi-Tag Cloud & Multi-Criteria Ledger Filter Bar -->
+        <div style="margin-bottom:12px; padding:10px 12px; border-radius:10px; background:rgba(15,23,42,0.65); border:1px solid var(--border-subtle); display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+              <span style="font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent-gold);">🏷️ Tag Filter:</span>
+              <button type="button" class="filter-pill ${state.tagFilter === 'ALL' ? 'active' : ''}" onclick="AppBridge.setTagFilter('ALL')">All Tags</button>
+              ${tagFilterButtonsHtml}
+            </div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-secondary);">
+              Showing <strong style="color:var(--text-primary);">${totalFilteredCount}</strong> of ${allRows.length} tx •
+              Out: <span class="amount-negative">-${fmtCurrency(filteredOutflows)}</span> •
+              In: <span class="amount-positive">+${fmtCurrency(filteredInflows)}</span> •
+              Net: <strong style="color:${filteredNet >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'};">${fmtCurrency(filteredNet)}</strong>
+            </div>
+          </div>
+
+          ${isCompactPreview ? "" : `
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding-top:6px; border-top:1px solid rgba(148,163,184,0.12);">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label style="font-size:11px; color:var(--text-muted);">Category:</label>
+                <select class="inline-select" style="min-width:190px;" onchange="AppBridge.setCategoryFilter(this.value)">
+                  <option value="ALL" ${state.categoryFilter === "ALL" ? "selected" : ""}>All Categories</option>
+                  ${categoryFilterOptionsHtml}
+                </select>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label style="font-size:11px; color:var(--text-muted);">Min $:</label>
+                <input type="number" step="10" min="0" class="inline-input inline-input-num" style="width:85px;" placeholder="0" value="${escapeHtml(state.minAmountFilter)}" oninput="AppBridge.setAmountRangeFilter(this.value, state.maxAmountFilter)" />
+                <label style="font-size:11px; color:var(--text-muted);">Max $:</label>
+                <input type="number" step="10" min="0" class="inline-input inline-input-num" style="width:85px;" placeholder="Any" value="${escapeHtml(state.maxAmountFilter)}" oninput="AppBridge.setAmountRangeFilter(state.minAmountFilter, this.value)" />
+              </div>
+              <button type="button" class="filter-pill ${state.onlyWithReceiptFilter ? 'active' : ''}" onclick="AppBridge.toggleReceiptOnlyFilter()">
+                📎 With Receipt Ref Only
+              </button>
+              ${hasActiveCustomFilter ? `
+                <button type="button" class="btn btn-outline btn-sm" onclick="AppBridge.resetRegisterFilters()">✕ Reset Filters</button>
+              ` : ""}
+            </div>
+          `}
+        </div>
+
         <div class="ledger-table-wrap">
           <table class="ledger-table">
             <thead>
@@ -664,7 +855,7 @@ const AppBridge = (() => {
                 <th>Date</th>
                 <th>Ref #</th>
                 <th>Status</th>
-                <th>Payee &amp; Memo</th>
+                <th>Payee, Memo, #Tags &amp; 📎 Receipt</th>
                 <th>Category</th>
                 <th class="num-col">Payment (−)</th>
                 <th class="num-col">Deposit (+)</th>
@@ -679,6 +870,38 @@ const AppBridge = (() => {
         </div>
       </section>
     `;
+  }
+
+  function setTagFilter(tag) {
+    state.tagFilter = tag || "ALL";
+    render();
+  }
+
+  function setCategoryFilter(catIdOrAll) {
+    state.categoryFilter = catIdOrAll || "ALL";
+    render();
+  }
+
+  function setAmountRangeFilter(minVal, maxVal) {
+    state.minAmountFilter = minVal ?? "";
+    state.maxAmountFilter = maxVal ?? "";
+    render();
+  }
+
+  function toggleReceiptOnlyFilter() {
+    state.onlyWithReceiptFilter = !state.onlyWithReceiptFilter;
+    render();
+  }
+
+  function resetRegisterFilters() {
+    state.statusFilter = "ALL";
+    state.tagFilter = "ALL";
+    state.categoryFilter = "ALL";
+    state.minAmountFilter = "";
+    state.maxAmountFilter = "";
+    state.onlyWithReceiptFilter = false;
+    state.searchQuery = "";
+    render();
   }
 
   // Inline Edit & Quick Entry Implementation
@@ -714,12 +937,15 @@ const AppBridge = (() => {
     const statusVal = document.getElementById(`edit-status-${txId}`)?.value || tx.status;
     const payeeVal = document.getElementById(`edit-payee-${txId}`)?.value.trim() || tx.payeeName;
     const memoVal = document.getElementById(`edit-memo-${txId}`)?.value.trim() || "";
+    const tagsVal = document.getElementById(`edit-tags-${txId}`)?.value.trim() || "";
+    const receiptVal = document.getElementById(`edit-receipt-${txId}`)?.value.trim() || "";
     const catEl = document.getElementById(`edit-cat-${txId}`);
     const catId = catEl ? Number(catEl.value) : tx.categoryId;
 
     const payVal = Math.abs(Number(document.getElementById(`edit-pay-${txId}`)?.value || 0));
     const depVal = Math.abs(Number(document.getElementById(`edit-dep-${txId}`)?.value || 0));
     const signedAmount = depVal > 0 && payVal === 0 ? depVal : -payVal;
+    const normalizedTags = parseTagList(tagsVal).join(",");
 
     state.editingTransactionId = null;
 
@@ -732,6 +958,8 @@ const AppBridge = (() => {
         payeeName: payeeVal,
         categoryId: catId,
         memo: memoVal,
+        tags: normalizedTags,
+        receiptRef: receiptVal || null,
         amount: signedAmount,
         status: statusVal
       });
@@ -740,6 +968,8 @@ const AppBridge = (() => {
       tx.referenceNumber = refVal;
       tx.payeeName = payeeVal;
       tx.memo = memoVal;
+      tx.tags = normalizedTags;
+      tx.receiptRef = receiptVal || null;
       tx.amount = signedAmount;
       tx.status = statusVal;
       if (!tx.isSplit && catId) {
@@ -773,6 +1003,9 @@ const AppBridge = (() => {
     const referenceNumber = document.getElementById("qe-ref")?.value.trim() || "REG";
     const status = document.getElementById("qe-status")?.value || "Cleared";
     const memo = document.getElementById("qe-memo")?.value.trim() || "";
+    const rawTags = document.getElementById("qe-tags")?.value.trim() || "";
+    const receiptRef = document.getElementById("qe-receipt")?.value.trim() || null;
+    const normalizedTags = parseTagList(rawTags).join(",");
     const categoryId = Number(document.getElementById("qe-category")?.value || 30);
     const payVal = Math.abs(Number(document.getElementById("qe-payment")?.value || 0));
     const depVal = Math.abs(Number(document.getElementById("qe-deposit")?.value || 0));
@@ -795,6 +1028,8 @@ const AppBridge = (() => {
         referenceNumber,
         status,
         memo,
+        tags: normalizedTags,
+        receiptRef,
         amount: signedAmount,
         splits: []
       });
@@ -810,6 +1045,8 @@ const AppBridge = (() => {
         categoryId,
         categoryName: catObj ? catObj.fullPath : "Uncategorized",
         memo,
+        tags: normalizedTags,
+        receiptRef,
         amount: signedAmount,
         runningBalance: 0,
         status,
@@ -2923,6 +3160,857 @@ const AppBridge = (() => {
     return `<div class="kpi-grid">${portalCards}</div>`;
   }
 
+  // ============================================================================
+  // Phase 4A: Debt Payoff & Mortgage Amortization Optimizer (Avalanche vs. Snowball)
+  // ============================================================================
+  function simulateSingleDebtJS(balance, apr, monthlyPayment) {
+    if (balance <= 0 || monthlyPayment <= 0) return { months: 0, totalInterest: 0 };
+    const r = (apr / 100) / 12;
+    let rem = balance;
+    let totalInterest = 0;
+    let months = 0;
+    while (rem > 0.01 && months < 600) {
+      months++;
+      const interest = Math.round(rem * r * 100) / 100;
+      let principal = monthlyPayment - interest;
+      if (principal <= 0) {
+        return { months: 600, totalInterest: Math.round(interest * 600 * 100) / 100 };
+      }
+      if (principal > rem) principal = rem;
+      totalInterest += interest;
+      rem -= principal;
+    }
+    return { months, totalInterest: Math.round(totalInterest * 100) / 100 };
+  }
+
+  function computeDebtPayoffSummary() {
+    if (isWebViewHost() && state.debtSummary) {
+      return state.debtSummary;
+    }
+
+    const mode = state.debtStrategyMode === "Snowball" ? "Snowball" : "Avalanche";
+    const sorted = [...state.debtLiabilities].sort((a, b) => {
+      if (mode === "Snowball") {
+        return a.currentBalance - b.currentBalance || b.interestRateApr - a.interestRateApr;
+      }
+      return b.interestRateApr - a.interestRateApr || a.currentBalance - b.currentBalance;
+    });
+
+    const anchorDate = new Date("2026-11-01T00:00:00Z");
+    const liabilities = sorted.map((d, idx) => {
+      const baseSim = simulateSingleDebtJS(d.currentBalance, d.interestRateApr, d.minimumMonthlyPayment);
+      const accelSim = simulateSingleDebtJS(d.currentBalance, d.interestRateApr, d.minimumMonthlyPayment + d.extraPrincipalMonthly);
+      const monthsSaved = Math.max(0, baseSim.months - accelSim.months);
+      const interestSaved = Math.max(0, Math.round((baseSim.totalInterest - accelSim.totalInterest) * 100) / 100);
+      const payoffDate = new Date(anchorDate);
+      payoffDate.setUTCMonth(payoffDate.getUTCMonth() + accelSim.months);
+      const paidOffPercent = d.originalPrincipal > 0
+        ? Math.min(100, Math.max(0, Math.round(((d.originalPrincipal - d.currentBalance) / d.originalPrincipal) * 1000) / 10))
+        : 0;
+
+      return {
+        ...d,
+        totalMonthlyPayment: d.minimumMonthlyPayment + d.extraPrincipalMonthly + d.escrowMonthly,
+        paidOffPercent,
+        strategyPriorityRank: idx + 1,
+        baselineMonthsToPayoff: baseSim.months,
+        acceleratedMonthsToPayoff: accelSim.months,
+        monthsSaved,
+        baselineTotalInterest: baseSim.totalInterest,
+        acceleratedTotalInterest: accelSim.totalInterest,
+        interestSaved,
+        projectedPayoffDate: payoffDate.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
+      };
+    });
+
+    const totalPrincipal = liabilities.reduce((s, d) => s + d.currentBalance, 0);
+    const totalOrig = liabilities.reduce((s, d) => s + d.originalPrincipal, 0);
+    const weightedApr = totalPrincipal > 0
+      ? Math.round((liabilities.reduce((s, d) => s + d.currentBalance * d.interestRateApr, 0) / totalPrincipal) * 100) / 100
+      : 0;
+
+    // 24-month combined rollover schedule
+    const simStates = liabilities.map((l) => ({
+      name: l.name,
+      balance: l.currentBalance,
+      monthlyRate: (l.interestRateApr / 100) / 12,
+      minPayment: l.minimumMonthlyPayment,
+      extraPayment: l.extraPrincipalMonthly,
+      rank: l.strategyPriorityRank
+    }));
+
+    const schedule = [];
+    let cumInterest = 0;
+    for (let m = 1; m <= 24; m++) {
+      const mDate = new Date(anchorDate);
+      mDate.setUTCMonth(mDate.getUTCMonth() + m);
+      const mLabel = mDate.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+      const startBal = simStates.reduce((s, x) => s + x.balance, 0);
+      if (startBal <= 0.01) break;
+
+      let freed = simStates.filter((x) => x.balance <= 0.01).reduce((s, x) => s + x.minPayment + x.extraPayment, 0);
+      const activeFocus = simStates.filter((x) => x.balance > 0.01).sort((a, b) => a.rank - b.rank)[0];
+      const focusName = activeFocus ? activeFocus.name : "All Debts Paid";
+
+      let mPayment = 0, mPrincipal = 0, mInterest = 0, mExtra = 0;
+      simStates.sort((a, b) => a.rank - b.rank).forEach((st) => {
+        if (st.balance <= 0.01) return;
+        const interest = Math.round(st.balance * st.monthlyRate * 100) / 100;
+        let extra = st.extraPayment;
+        if (activeFocus && st.name === activeFocus.name) {
+          extra += freed;
+          freed = 0;
+        }
+        let targetPay = st.minPayment + extra;
+        let principal = targetPay - interest;
+        if (principal > st.balance) {
+          const unused = principal - st.balance;
+          principal = st.balance;
+          targetPay = interest + principal;
+          freed += Math.max(0, unused);
+        }
+        st.balance = Math.max(0, Math.round((st.balance - principal) * 100) / 100);
+        mPayment += targetPay;
+        mPrincipal += principal;
+        mInterest += interest;
+        mExtra += Math.max(0, principal - Math.max(0, st.minPayment - interest));
+      });
+
+      cumInterest += mInterest;
+      schedule.push({
+        monthNumber: m,
+        monthLabel: mLabel,
+        startingBalance: startBal,
+        totalPayment: Math.round(mPayment * 100) / 100,
+        principalPaid: Math.round(mPrincipal * 100) / 100,
+        interestPaid: Math.round(mInterest * 100) / 100,
+        extraPrincipalApplied: Math.round(mExtra * 100) / 100,
+        endingBalance: simStates.reduce((s, x) => s + x.balance, 0),
+        cumulativeInterest: Math.round(cumInterest * 100) / 100,
+        activeTargetDebtName: focusName
+      });
+    }
+
+    const maxBaseMonths = liabilities.length ? Math.max(...liabilities.map((l) => l.baselineMonthsToPayoff)) : 0;
+    const maxAccelMonths = liabilities.length ? Math.max(...liabilities.map((l) => l.acceleratedMonthsToPayoff)) : 0;
+    const debtFreeDate = new Date(anchorDate);
+    debtFreeDate.setUTCMonth(debtFreeDate.getUTCMonth() + maxAccelMonths);
+
+    return {
+      activeStrategy: mode,
+      totalPrincipalBalance: totalPrincipal,
+      totalOriginalPrincipal: totalOrig,
+      overallPaidOffPercent: totalOrig > 0 ? Math.round(((totalOrig - totalPrincipal) / totalOrig) * 1000) / 10 : 0,
+      weightedAverageApr: weightedApr,
+      totalMinimumPaymentMonthly: liabilities.reduce((s, d) => s + d.minimumMonthlyPayment, 0),
+      totalExtraPrincipalMonthly: liabilities.reduce((s, d) => s + d.extraPrincipalMonthly, 0),
+      totalEscrowMonthly: liabilities.reduce((s, d) => s + d.escrowMonthly, 0),
+      totalBaselineInterest: liabilities.reduce((s, d) => s + d.baselineTotalInterest, 0),
+      totalAcceleratedInterest: liabilities.reduce((s, d) => s + d.acceleratedTotalInterest, 0),
+      totalInterestSaved: liabilities.reduce((s, d) => s + d.interestSaved, 0),
+      maxMonthsSaved: Math.max(0, maxBaseMonths - maxAccelMonths),
+      debtFreeDateLabel: debtFreeDate.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      liabilities,
+      combinedSchedule: schedule
+    };
+  }
+
+  function setDebtStrategy(mode) {
+    state.debtStrategyMode = mode === "Snowball" ? "Snowball" : "Avalanche";
+    if (isWebViewHost()) {
+      postToHost({ type: "setDebtStrategy", strategyMode: state.debtStrategyMode });
+    } else {
+      state.debtSummary = null;
+      render();
+      showToast(`Switched debt payoff cascade to ${state.debtStrategyMode} strategy.`);
+    }
+  }
+
+  function updateDebtLiabilityInline(id) {
+    const balEl = document.getElementById(`debt-bal-${id}`);
+    const aprEl = document.getElementById(`debt-apr-${id}`);
+    const minEl = document.getElementById(`debt-min-${id}`);
+    const extEl = document.getElementById(`debt-ext-${id}`);
+    if (!balEl || !aprEl || !minEl || !extEl) return;
+
+    const currentBalance = Math.max(0, Number(balEl.value || 0));
+    const interestRateApr = Math.max(0, Number(aprEl.value || 0));
+    const minimumMonthlyPayment = Math.max(0, Number(minEl.value || 0));
+    const extraPrincipalMonthly = Math.max(0, Number(extEl.value || 0));
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "updateDebtLiability",
+        id,
+        currentBalance,
+        interestRateApr,
+        minimumMonthlyPayment,
+        extraPrincipalMonthly
+      });
+    } else {
+      const item = state.debtLiabilities.find((d) => d.id === id);
+      if (item) {
+        item.currentBalance = currentBalance;
+        item.interestRateApr = interestRateApr;
+        item.minimumMonthlyPayment = minimumMonthlyPayment;
+        item.extraPrincipalMonthly = extraPrincipalMonthly;
+      }
+      state.debtSummary = null;
+      render();
+      showToast(`Updated ${item ? item.name : "liability"} (+${fmtCurrency(extraPrincipalMonthly)}/mo extra principal).`);
+    }
+  }
+
+  function submitNewDebtLiability(e) {
+    e.preventDefault();
+    const name = document.getElementById("new-debt-name")?.value.trim();
+    const institution = document.getElementById("new-debt-inst")?.value.trim() || "Lender";
+    const categoryType = document.getElementById("new-debt-type")?.value || "Loan";
+    const currentBalance = Math.max(0, Number(document.getElementById("new-debt-bal")?.value || 0));
+    const interestRateApr = Math.max(0, Number(document.getElementById("new-debt-apr")?.value || 0));
+    const minimumMonthlyPayment = Math.max(1, Number(document.getElementById("new-debt-min")?.value || 100));
+    const extraPrincipalMonthly = Math.max(0, Number(document.getElementById("new-debt-ext")?.value || 0));
+
+    if (!name || currentBalance <= 0) return;
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "createDebtLiability",
+        name,
+        institution,
+        categoryType,
+        originalPrincipal: currentBalance,
+        currentBalance,
+        interestRateApr,
+        minimumMonthlyPayment,
+        extraPrincipalMonthly,
+        remainingTermMonths: 60,
+        nextDueDate: "2026-12-01",
+        escrowMonthly: 0
+      });
+    } else {
+      state.debtLiabilities.push({
+        id: Date.now(),
+        accountId: null,
+        name,
+        institution,
+        categoryType,
+        originalPrincipal: currentBalance,
+        currentBalance,
+        interestRateApr,
+        minimumMonthlyPayment,
+        extraPrincipalMonthly,
+        remainingTermMonths: 60,
+        nextDueDate: "2026-12-01",
+        escrowMonthly: 0,
+        notes: "Custom liability added to payoff optimizer"
+      });
+      state.debtSummary = null;
+      render();
+      showToast(`Added '${name}' (${fmtCurrency(currentBalance)} @ ${interestRateApr.toFixed(2)}% APR).`);
+    }
+  }
+
+  function deleteDebtLiability(id) {
+    if (isWebViewHost()) {
+      postToHost({ type: "deleteDebtLiability", liabilityId: id });
+    } else {
+      state.debtLiabilities = state.debtLiabilities.filter((d) => d.id !== id);
+      state.debtSummary = null;
+      render();
+      showToast(`Removed debt profile #${id}.`);
+    }
+  }
+
+  function renderDebtOptimizerView() {
+    const summary = computeDebtPayoffSummary();
+    const isAvalanche = summary.activeStrategy !== "Snowball";
+
+    const debtRows = summary.liabilities.map((d) => {
+      const rankBadgeColor = d.strategyPriorityRank === 1
+        ? "background:rgba(212,175,55,0.2);color:#F3E5AB;border:1px solid rgba(212,175,55,0.5);"
+        : "background:rgba(56,189,248,0.12);color:#38BDF8;border:1px solid rgba(56,189,248,0.3);";
+
+      return `
+        <tr>
+          <td style="text-align:center;">
+            <span class="badge-pill" style="${rankBadgeColor} font-weight:700;">#${d.strategyPriorityRank}</span>
+          </td>
+          <td>
+            <div style="font-weight:700; color:var(--text-primary);">${escapeHtml(d.name)}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(d.institution)} • <span style="color:var(--gold-light);">${escapeHtml(d.categoryType)}</span> • Due ${escapeHtml(d.nextDueDate)}</div>
+            <div style="margin-top:5px; width:160px; height:5px; background:#090D14; border-radius:999px; overflow:hidden; border:1px solid var(--border-subtle);">
+              <div style="width:${Math.min(100, d.paidOffPercent)}%; height:100%; background:linear-gradient(90deg, #10B981, #D4AF37);"></div>
+            </div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${d.paidOffPercent.toFixed(1)}% of ${fmtCurrency(d.originalPrincipal)} original retired</div>
+          </td>
+          <td class="col-num">
+            <input type="number" id="debt-bal-${d.id}" class="inline-edit-input" style="width:110px; text-align:right;" step="10" value="${d.currentBalance.toFixed(2)}" onchange="AppBridge.updateDebtLiabilityInline(${d.id})" />
+          </td>
+          <td class="col-num">
+            <input type="number" id="debt-apr-${d.id}" class="inline-edit-input" style="width:74px; text-align:right;" step="0.05" value="${d.interestRateApr}" onchange="AppBridge.updateDebtLiabilityInline(${d.id})" />
+          </td>
+          <td class="col-num">
+            <input type="number" id="debt-min-${d.id}" class="inline-edit-input" style="width:92px; text-align:right;" step="5" value="${d.minimumMonthlyPayment.toFixed(2)}" onchange="AppBridge.updateDebtLiabilityInline(${d.id})" />
+          </td>
+          <td class="col-num">
+            <input type="number" id="debt-ext-${d.id}" class="inline-edit-input" style="width:92px; text-align:right; border-color:rgba(16,185,129,0.5); color:#10B981; font-weight:700;" step="25" value="${d.extraPrincipalMonthly.toFixed(2)}" onchange="AppBridge.updateDebtLiabilityInline(${d.id})" />
+          </td>
+          <td class="col-num" style="font-weight:700; color:var(--text-primary);">
+            ${fmtCurrency(d.minimumMonthlyPayment + d.extraPrincipalMonthly)}
+            ${d.escrowMonthly > 0 ? `<div style="font-size:10px; color:var(--text-muted);">+${fmtCurrency(d.escrowMonthly)} escrow</div>` : ""}
+          </td>
+          <td class="col-num">
+            <div style="font-weight:700; color:#38BDF8;">${escapeHtml(d.projectedPayoffDate)}</div>
+            <div style="font-size:10px; color:#10B981;">${d.monthsSaved > 0 ? `▼ ${d.monthsSaved} mo faster (${d.acceleratedMonthsToPayoff} vs ${d.baselineMonthsToPayoff} mo)` : `${d.acceleratedMonthsToPayoff} mo remaining`}</div>
+          </td>
+          <td class="col-num">
+            <div style="font-weight:700; color:#10B981;">${fmtCurrency(d.interestSaved)}</div>
+            <div style="font-size:10px; color:var(--text-muted);">Rem Interest: ${fmtCurrency(d.acceleratedTotalInterest)}</div>
+          </td>
+          <td style="text-align:right;">
+            <button class="btn btn-outline btn-sm" title="Remove liability" onclick="AppBridge.deleteDebtLiability(${d.id})">✕</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const scheduleRows = (summary.combinedSchedule || []).map((row) => `
+      <tr>
+        <td style="font-family:var(--font-mono); color:var(--text-muted);">Month #${row.monthNumber}</td>
+        <td style="font-weight:600;">${escapeHtml(row.monthLabel)}</td>
+        <td><span class="badge-pill" style="background:rgba(212,175,55,0.14); color:var(--gold-light); border:1px solid rgba(212,175,55,0.35);">🎯 ${escapeHtml(row.activeTargetDebtName)}</span></td>
+        <td class="col-num">${fmtCurrency(row.startingBalance)}</td>
+        <td class="col-num" style="font-weight:700;">${fmtCurrency(row.totalPayment)}</td>
+        <td class="col-num amount-positive">${fmtCurrency(row.principalPaid)}</td>
+        <td class="col-num amount-negative">${fmtCurrency(row.interestPaid)}</td>
+        <td class="col-num" style="color:#38BDF8; font-weight:600;">+${fmtCurrency(row.extraPrincipalApplied)}</td>
+        <td class="col-num" style="font-weight:700; color:var(--gold-light);">${fmtCurrency(row.endingBalance)}</td>
+      </tr>
+    `).join("");
+
+    return `
+      <!-- KPI Scoreboard -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">TOTAL PRINCIPAL LIABILITY</div>
+          <div class="kpi-value negative">${fmtCurrency(summary.totalPrincipalBalance)}</div>
+          <div class="kpi-sub">
+            <span class="tag-emerald">${summary.overallPaidOffPercent.toFixed(1)}% Principal Retired</span>
+            <span>Weighted ${summary.weightedAverageApr.toFixed(2)}% APR</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">MONTHLY PRINCIPAL + EXTRA SNOWBALL</div>
+          <div class="kpi-value gold">${fmtCurrency(summary.totalMinimumPaymentMonthly + summary.totalExtraPrincipalMonthly)}</div>
+          <div class="kpi-sub">
+            <span class="tag-emerald">+${fmtCurrency(summary.totalExtraPrincipalMonthly)}/mo Extra Principal</span>
+            <span>Min P&amp;I: ${fmtCurrency(summary.totalMinimumPaymentMonthly)}</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">LIFETIME INTEREST SAVED</div>
+          <div class="kpi-value positive">${fmtCurrency(summary.totalInterestSaved)}</div>
+          <div class="kpi-sub">
+            <span class="tag-emerald">Accel: ${fmtCurrency(summary.totalAcceleratedInterest)}</span>
+            <span>Baseline: ${fmtCurrency(summary.totalBaselineInterest)}</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">PROJECTED DEBT-FREE MILESTONE</div>
+          <div class="kpi-value" style="color:#38BDF8;">${escapeHtml(summary.debtFreeDateLabel)}</div>
+          <div class="kpi-sub">
+            <span class="tag-gold">▼ ${summary.maxMonthsSaved} Months Shaved Off</span>
+            <span>Strategy: ${escapeHtml(summary.activeStrategy)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy Switcher & Interactive Liability Table -->
+      <div class="panel-card" style="margin-bottom:16px;">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🏦 Interactive Debt Payoff &amp; Mortgage Amortization Optimizer</div>
+            <div class="panel-subtitle">Edit Current Balance, APR %, Minimum Payment, or Extra Monthly Principal inline to recalculate interest savings and payoff dates in real time</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn ${isAvalanche ? 'btn-gold' : 'btn-outline'} btn-sm" onclick="AppBridge.setDebtStrategy('Avalanche')">
+              🏔️ Avalanche (Highest APR First)
+            </button>
+            <button class="btn ${!isAvalanche ? 'btn-gold' : 'btn-outline'} btn-sm" onclick="AppBridge.setDebtStrategy('Snowball')">
+              ❄️ Snowball (Smallest Balance First)
+            </button>
+          </div>
+        </div>
+
+        <div class="register-table-wrap">
+          <table class="register-table">
+            <thead>
+              <tr>
+                <th style="width:65px; text-align:center;">Order</th>
+                <th>Liability / Mortgage / Note</th>
+                <th class="col-num">Current Principal</th>
+                <th class="col-num">APR (%)</th>
+                <th class="col-num">Min P&amp;I Payment</th>
+                <th class="col-num">Extra Principal / Mo</th>
+                <th class="col-num">Total Monthly Draft</th>
+                <th class="col-num">Projected Payoff</th>
+                <th class="col-num">Interest Saved</th>
+                <th style="width:50px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${debtRows}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Quick-Add Liability Bar -->
+        <form onsubmit="AppBridge.submitNewDebtLiability(event)" style="display:grid; grid-template-columns: 1.5fr 1.1fr 0.9fr 0.9fr 0.7fr 0.9fr 0.9fr auto; gap:8px; padding:12px 16px; border-top:1px solid var(--border-subtle); background:rgba(15,21,32,0.75); align-items:center;">
+          <input type="text" id="new-debt-name" class="inline-edit-input" placeholder="Liability Name (e.g., Solar Loan)" required />
+          <input type="text" id="new-debt-inst" class="inline-edit-input" placeholder="Lender / Bank" required />
+          <select id="new-debt-type" class="inline-edit-select">
+            <option value="Mortgage">Mortgage</option>
+            <option value="Auto Loan">Auto Loan</option>
+            <option value="Credit Card">Credit Card</option>
+            <option value="Student / Personal">Student / Personal</option>
+          </select>
+          <input type="number" id="new-debt-bal" class="inline-edit-input" step="10" min="1" placeholder="Balance ($)" required />
+          <input type="number" id="new-debt-apr" class="inline-edit-input" step="0.01" min="0" placeholder="APR %" required />
+          <input type="number" id="new-debt-min" class="inline-edit-input" step="5" min="1" placeholder="Min Pay ($)" required />
+          <input type="number" id="new-debt-ext" class="inline-edit-input" step="10" min="0" placeholder="Extra ($)" value="100" />
+          <button type="submit" class="btn btn-gold btn-sm">＋ Add Debt</button>
+        </form>
+      </div>
+
+      <!-- 24-Month Rollover Amortization Schedule -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">📅 24-Month Combined Rollover Amortization Schedule (${escapeHtml(summary.activeStrategy)} Cascade)</div>
+            <div class="panel-subtitle">When a higher-priority debt is paid off, its entire minimum + extra payment automatically cascades into the next target liability</div>
+          </div>
+          <span class="kicker-pill">${(summary.combinedSchedule || []).length} MONTHS PROJECTED</span>
+        </div>
+        <div class="register-table-wrap" style="max-height:380px; overflow-y:auto;">
+          <table class="register-table">
+            <thead>
+              <tr>
+                <th>Cycle</th>
+                <th>Month</th>
+                <th>Active Rollover Target</th>
+                <th class="col-num">Starting Principal</th>
+                <th class="col-num">Total P&amp;I Draft</th>
+                <th class="col-num">Principal Retired</th>
+                <th class="col-num">Interest Cost</th>
+                <th class="col-num">Extra + Rollover</th>
+                <th class="col-num">Ending Principal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${scheduleRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // ============================================================================
+  // Phase 4B: Savings Goals & Sinking Funds Planner
+  // ============================================================================
+  function computeSavingsGoalsSummary() {
+    if (isWebViewHost() && state.savingsGoalsSummary) {
+      return state.savingsGoalsSummary;
+    }
+
+    const hysa = state.accounts.find((a) => a.id === 2) || state.accounts[0];
+    const hysaBalance = hysa ? hysa.currentBalance : 29362.40;
+    const anchorDate = new Date("2026-11-15T00:00:00Z");
+
+    const goals = [...state.savingsGoals]
+      .sort((a, b) => (a.priorityOrder || 10) - (b.priorityOrder || 10))
+      .map((g) => {
+        const tDate = new Date(`${g.targetDate || "2027-06-01"}T00:00:00Z`);
+        const monthsUntilTarget = Math.max(
+          1,
+          (tDate.getUTCFullYear() - anchorDate.getUTCFullYear()) * 12 +
+            (tDate.getUTCMonth() - anchorDate.getUTCMonth())
+        );
+        const remainingAmount = Math.max(0, g.targetAmount - g.currentSavedAmount);
+        const progressPercent = g.targetAmount > 0
+          ? Math.min(100, Math.max(0, Math.round((g.currentSavedAmount / g.targetAmount) * 1000) / 10))
+          : 100;
+        const requiredMonthlyToHitTargetDate = remainingAmount <= 0
+          ? 0
+          : Math.round((remainingAmount / monthsUntilTarget) * 100) / 100;
+        const monthsAtPlan = remainingAmount <= 0
+          ? 0
+          : (g.monthlyContributionTarget > 0 ? Math.ceil(remainingAmount / g.monthlyContributionTarget) : 99);
+        const projDate = new Date(anchorDate);
+        projDate.setUTCMonth(projDate.getUTCMonth() + monthsAtPlan);
+
+        const projectedCompletionDate = remainingAmount <= 0
+          ? "Fully Funded ✓"
+          : projDate.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+        const statusBadge = remainingAmount <= 0
+          ? "Fully Funded"
+          : (g.monthlyContributionTarget >= requiredMonthlyToHitTargetDate ? "On Track" : "Needs Boost");
+
+        return {
+          ...g,
+          remainingAmount,
+          progressPercent,
+          monthsRemaining: remainingAmount <= 0 ? 0 : monthsUntilTarget,
+          requiredMonthlyToHitTargetDate,
+          projectedCompletionDate,
+          statusBadge
+        };
+      });
+
+    const totalTargetAmount = goals.reduce((s, g) => s + g.targetAmount, 0);
+    const totalCurrentSaved = goals.reduce((s, g) => s + g.currentSavedAmount, 0);
+
+    return {
+      highYieldSavingsBalance: hysaBalance,
+      totalTargetAmount,
+      totalCurrentSaved,
+      totalRemainingToFund: Math.max(0, totalTargetAmount - totalCurrentSaved),
+      overallFundedPercent: totalTargetAmount > 0 ? Math.round((totalCurrentSaved / totalTargetAmount) * 1000) / 10 : 0,
+      unallocatedSavingsBuffer: Math.max(0, hysaBalance - totalCurrentSaved),
+      totalMonthlyContributionPlan: goals.reduce((s, g) => s + g.monthlyContributionTarget, 0),
+      totalRequiredMonthlyForDeadlines: goals.reduce((s, g) => s + g.requiredMonthlyToHitTargetDate, 0),
+      fullyFundedCount: goals.filter((g) => g.remainingAmount <= 0).length,
+      onTrackCount: goals.filter((g) => g.statusBadge === "On Track" || g.statusBadge === "Fully Funded").length,
+      goals
+    };
+  }
+
+  function updateSavingsGoalInline(id) {
+    const tgtEl = document.getElementById(`goal-tgt-${id}`);
+    const savEl = document.getElementById(`goal-sav-${id}`);
+    const monEl = document.getElementById(`goal-mon-${id}`);
+    const dtEl = document.getElementById(`goal-dt-${id}`);
+    if (!tgtEl || !savEl || !monEl || !dtEl) return;
+
+    const targetAmount = Math.max(1, Number(tgtEl.value || 0));
+    const currentSavedAmount = Math.max(0, Number(savEl.value || 0));
+    const monthlyContributionTarget = Math.max(0, Number(monEl.value || 0));
+    const targetDate = dtEl.value || "2027-06-01";
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "updateSavingsGoal",
+        id,
+        targetAmount,
+        currentSavedAmount,
+        monthlyContributionTarget,
+        targetDate
+      });
+    } else {
+      const g = state.savingsGoals.find((x) => x.id === id);
+      if (g) {
+        g.targetAmount = targetAmount;
+        g.currentSavedAmount = currentSavedAmount;
+        g.monthlyContributionTarget = monthlyContributionTarget;
+        g.targetDate = targetDate;
+      }
+      state.savingsGoalsSummary = null;
+      render();
+      showToast(`Updated '${g ? g.name : "goal"}' (${fmtCurrency(currentSavedAmount)} / ${fmtCurrency(targetAmount)}).`);
+    }
+  }
+
+  function contributeSavingsGoal(goalId, customAmount) {
+    const g = state.savingsGoals.find((x) => x.id === goalId);
+    const amount = Number(customAmount || (g ? g.monthlyContributionTarget : 250) || 250);
+    if (amount <= 0) return;
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "contributeSavingsGoal",
+        goalId,
+        amount,
+        recordLedgerTransfer: true
+      });
+    } else {
+      if (g) {
+        g.currentSavedAmount = Math.round((g.currentSavedAmount + amount) * 100) / 100;
+        const hysa = state.accounts.find((a) => a.id === 2);
+        if (hysa) {
+          hysa.currentBalance = Math.round((hysa.currentBalance + amount) * 100) / 100;
+          hysa.clearedBalance = Math.round((hysa.clearedBalance + amount) * 100) / 100;
+        }
+        state.transactions.unshift({
+          id: Date.now(),
+          accountId: 2,
+          accountName: "High-Yield Savings",
+          transactionDate: "2026-11-15",
+          referenceNumber: "GOAL-XFER",
+          payeeName: `Sinking Fund Allocation — ${g.name}`,
+          categoryId: 71,
+          categoryName: "Transfers & Debt:Savings Transfer",
+          memo: `Phase 4B Sinking Fund Contribution to '${g.name}'`,
+          amount,
+          payment: 0,
+          deposit: amount,
+          runningBalance: hysa ? hysa.currentBalance : 29362.40 + amount,
+          status: "Cleared",
+          isSplit: false,
+          splits: []
+        });
+      }
+      state.savingsGoalsSummary = null;
+      render();
+      showToast(`Allocated +${fmtCurrency(amount)} to '${g ? g.name : "Sinking Fund"}' & recorded ledger transfer.`);
+    }
+  }
+
+  function submitNewSavingsGoal(e) {
+    e.preventDefault();
+    const name = document.getElementById("new-goal-name")?.value.trim();
+    const categoryGroup = document.getElementById("new-goal-group")?.value || "Sinking Fund";
+    const iconGlyph = document.getElementById("new-goal-icon")?.value || "🎯";
+    const targetAmount = Math.max(1, Number(document.getElementById("new-goal-target")?.value || 0));
+    const currentSavedAmount = Math.max(0, Number(document.getElementById("new-goal-saved")?.value || 0));
+    const monthlyContributionTarget = Math.max(0, Number(document.getElementById("new-goal-monthly")?.value || 250));
+    const targetDate = document.getElementById("new-goal-date")?.value || "2027-12-01";
+
+    if (!name || targetAmount <= 0) return;
+
+    if (isWebViewHost()) {
+      postToHost({
+        type: "createSavingsGoal",
+        accountId: 2,
+        name,
+        categoryGroup,
+        iconGlyph,
+        colorHex: "#38BDF8",
+        targetAmount,
+        currentSavedAmount,
+        monthlyContributionTarget,
+        targetDate,
+        priorityOrder: (state.savingsGoals.length + 1) * 10
+      });
+    } else {
+      state.savingsGoals.push({
+        id: Date.now(),
+        accountId: 2,
+        accountName: "High-Yield Savings ••9014",
+        name,
+        categoryGroup,
+        iconGlyph,
+        colorHex: "#38BDF8",
+        targetAmount,
+        currentSavedAmount,
+        monthlyContributionTarget,
+        targetDate,
+        priorityOrder: (state.savingsGoals.length + 1) * 10,
+        notes: "Custom sinking fund goal"
+      });
+      state.savingsGoalsSummary = null;
+      render();
+      showToast(`Created sinking fund '${name}' (${fmtCurrency(currentSavedAmount)} / ${fmtCurrency(targetAmount)}).`);
+    }
+  }
+
+  function deleteSavingsGoal(id) {
+    if (isWebViewHost()) {
+      postToHost({ type: "deleteSavingsGoal", goalId: id });
+    } else {
+      state.savingsGoals = state.savingsGoals.filter((g) => g.id !== id);
+      state.savingsGoalsSummary = null;
+      render();
+      showToast(`Deleted savings goal #${id}.`);
+    }
+  }
+
+  function renderSavingsGoalsView() {
+    const summary = computeSavingsGoalsSummary();
+
+    const goalCards = summary.goals.map((g) => {
+      const badgeStyle = g.statusBadge === "Fully Funded"
+        ? "background:rgba(16,185,129,0.2); color:#10B981; border:1px solid rgba(16,185,129,0.5);"
+        : g.statusBadge === "On Track"
+        ? "background:rgba(56,189,248,0.15); color:#38BDF8; border:1px solid rgba(56,189,248,0.4);"
+        : "background:rgba(245,158,11,0.18); color:#F59E0B; border:1px solid rgba(245,158,11,0.45);";
+
+      return `
+        <div class="panel-card" style="padding:16px; border-top:3px solid ${escapeHtml(g.colorHex || '#10B981')};">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+            <div style="display:flex; gap:10px; align-items:center;">
+              <div style="font-size:24px; width:42px; height:42px; border-radius:10px; background:rgba(15,21,32,0.9); border:1px solid var(--border-subtle); display:flex; align-items:center; justify-content:center;">
+                ${escapeHtml(g.iconGlyph)}
+              </div>
+              <div>
+                <div style="font-weight:700; font-size:14px; color:var(--text-primary);">${escapeHtml(g.name)}</div>
+                <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(g.categoryGroup)} • ${escapeHtml(g.accountName)}</div>
+              </div>
+            </div>
+            <span class="badge-pill" style="${badgeStyle} font-weight:700;">${escapeHtml(g.statusBadge)}</span>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;">
+            <div>
+              <span style="font-family:var(--font-mono); font-size:20px; font-weight:800; color:var(--emerald);">${fmtCurrency(g.currentSavedAmount)}</span>
+              <span style="font-size:12px; color:var(--text-muted);"> of ${fmtCurrency(g.targetAmount)} target</span>
+            </div>
+            <div style="font-family:var(--font-mono); font-size:13px; font-weight:700; color:var(--gold-light);">${g.progressPercent.toFixed(1)}%</div>
+          </div>
+
+          <div style="width:100%; height:8px; background:#090D14; border-radius:999px; overflow:hidden; border:1px solid var(--border-subtle); margin-bottom:10px;">
+            <div style="width:${Math.min(100, g.progressPercent)}%; height:100%; background:linear-gradient(90deg, ${escapeHtml(g.colorHex || '#10B981')}, #D4AF37);"></div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; font-size:11px; padding:8px 10px; border-radius:8px; background:rgba(9,13,20,0.65); border:1px solid var(--border-subtle); margin-bottom:10px;">
+            <div>
+              <div style="color:var(--text-muted); font-size:10px;">REMAINING</div>
+              <div style="font-family:var(--font-mono); font-weight:700;">${fmtCurrency(g.remainingAmount)}</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted); font-size:10px;">REQ. / MONTH</div>
+              <div style="font-family:var(--font-mono); font-weight:700; color:${g.monthlyContributionTarget >= g.requiredMonthlyToHitTargetDate ? '#10B981' : '#F59E0B'};">${fmtCurrency(g.requiredMonthlyToHitTargetDate)}/mo</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted); font-size:10px;">PROJECTED HIT</div>
+              <div style="font-family:var(--font-mono); font-weight:700; color:#38BDF8;">${escapeHtml(g.projectedCompletionDate)}</div>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="font-size:11px; color:var(--text-muted);">Target Date: <strong>${escapeHtml(g.targetDate)}</strong> (${g.monthsRemaining} mo)</div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-gold btn-sm" onclick="AppBridge.contributeSavingsGoal(${g.id}, ${g.monthlyContributionTarget})">
+                ＋ Fund Monthly (${fmtCurrency(g.monthlyContributionTarget)})
+              </button>
+              <button class="btn btn-outline btn-sm" onclick="AppBridge.contributeSavingsGoal(${g.id}, 250)">
+                +$250
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const tableRows = summary.goals.map((g) => `
+      <tr>
+        <td>
+          <div style="font-weight:700; color:var(--text-primary);">${escapeHtml(g.iconGlyph)} ${escapeHtml(g.name)}</div>
+          <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(g.categoryGroup)} • ${escapeHtml(g.notes || '')}</div>
+        </td>
+        <td>
+          <input type="date" id="goal-dt-${g.id}" class="inline-edit-input" style="width:130px;" value="${escapeHtml(g.targetDate)}" onchange="AppBridge.updateSavingsGoalInline(${g.id})" />
+        </td>
+        <td class="col-num">
+          <input type="number" id="goal-sav-${g.id}" class="inline-edit-input" style="width:110px; text-align:right; color:#10B981; font-weight:700;" step="50" value="${g.currentSavedAmount.toFixed(2)}" onchange="AppBridge.updateSavingsGoalInline(${g.id})" />
+        </td>
+        <td class="col-num">
+          <input type="number" id="goal-tgt-${g.id}" class="inline-edit-input" style="width:110px; text-align:right;" step="100" value="${g.targetAmount.toFixed(2)}" onchange="AppBridge.updateSavingsGoalInline(${g.id})" />
+        </td>
+        <td class="col-num" style="font-weight:700;">${fmtCurrency(g.remainingAmount)}</td>
+        <td class="col-num">
+          <input type="number" id="goal-mon-${g.id}" class="inline-edit-input" style="width:95px; text-align:right; border-color:rgba(212,175,55,0.5); color:var(--gold-light); font-weight:700;" step="25" value="${g.monthlyContributionTarget.toFixed(2)}" onchange="AppBridge.updateSavingsGoalInline(${g.id})" />
+        </td>
+        <td class="col-num" style="color:${g.monthlyContributionTarget >= g.requiredMonthlyToHitTargetDate ? '#10B981' : '#F59E0B'}; font-weight:700;">
+          ${fmtCurrency(g.requiredMonthlyToHitTargetDate)}/mo
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn btn-gold btn-sm" onclick="AppBridge.contributeSavingsGoal(${g.id}, ${g.monthlyContributionTarget})">＋ Contribute</button>
+          <button class="btn btn-outline btn-sm" onclick="AppBridge.deleteSavingsGoal(${g.id})">✕</button>
+        </td>
+      </tr>
+    `).join("");
+
+    return `
+      <!-- KPI Scoreboard -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">TOTAL SINKING FUNDS SAVED</div>
+          <div class="kpi-value positive">${fmtCurrency(summary.totalCurrentSaved)}</div>
+          <div class="kpi-sub">
+            <span class="tag-emerald">${summary.overallFundedPercent.toFixed(1)}% of ${fmtCurrency(summary.totalTargetAmount)} Goal</span>
+            <span>HYSA: ${fmtCurrency(summary.highYieldSavingsBalance)}</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">REMAINING TO FULLY FUND</div>
+          <div class="kpi-value gold">${fmtCurrency(summary.totalRemainingToFund)}</div>
+          <div class="kpi-sub">
+            <span class="tag-gold">${summary.onTrackCount}/${summary.goals.length} Goals On Track</span>
+            <span>Unallocated Buffer: ${fmtCurrency(summary.unallocatedSavingsBuffer)}</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">PLANNED MONTHLY CONTRIBUTIONS</div>
+          <div class="kpi-value" style="color:#38BDF8;">${fmtCurrency(summary.totalMonthlyContributionPlan)}/mo</div>
+          <div class="kpi-sub">
+            <span class="tag-emerald">Req for Deadlines: ${fmtCurrency(summary.totalRequiredMonthlyForDeadlines)}/mo</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">HIGH-YIELD SAVINGS APY</div>
+          <div class="kpi-value positive">4.65% APY</div>
+          <div class="kpi-sub">
+            <span class="tag-gold">Marcus ••9014</span>
+            <span>Est. +${fmtCurrency(summary.totalCurrentSaved * 0.0465 / 12)}/mo Yield</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Sinking Fund Cards Grid -->
+      <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; margin-bottom:16px;">
+        ${goalCards}
+      </div>
+
+      <!-- Inline Sinking Fund Allocation Table & Quick-Add Form -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">🏛️ Sinking Fund Target &amp; Contribution Ledger (SQLite SavingsGoals)</div>
+            <div class="panel-subtitle">Edit Target Dates, Saved Balances, Targets, or Monthly Contributions inline, or click ＋ Contribute to record a Cleared Savings Transfer</div>
+          </div>
+          <span class="kicker-pill">${summary.goals.length} ACTIVE SINKING FUNDS</span>
+        </div>
+        <div class="register-table-wrap">
+          <table class="register-table">
+            <thead>
+              <tr>
+                <th>Savings Goal / Sinking Fund</th>
+                <th>Target Date</th>
+                <th class="col-num">Current Saved</th>
+                <th class="col-num">Target Goal</th>
+                <th class="col-num">Remaining</th>
+                <th class="col-num">Monthly Plan</th>
+                <th class="col-num">Required / Mo</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+
+        <form onsubmit="AppBridge.submitNewSavingsGoal(event)" style="display:grid; grid-template-columns: 0.45fr 1.5fr 1fr 0.9fr 0.9fr 0.9fr 0.95fr auto; gap:8px; padding:12px 16px; border-top:1px solid var(--border-subtle); background:rgba(15,21,32,0.75); align-items:center;">
+          <input type="text" id="new-goal-icon" class="inline-edit-input" value="🎯" style="text-align:center;" />
+          <input type="text" id="new-goal-name" class="inline-edit-input" placeholder="New Goal Name (e.g., Parish Tuition Reserve)" required />
+          <select id="new-goal-group" class="inline-edit-select">
+            <option value="Emergency & Reserves">Emergency &amp; Reserves</option>
+            <option value="Major Purchases">Major Purchases</option>
+            <option value="Family & Ministry">Family &amp; Ministry</option>
+            <option value="Home & Escrow">Home &amp; Escrow</option>
+          </select>
+          <input type="number" id="new-goal-saved" class="inline-edit-input" step="50" min="0" placeholder="Saved ($)" value="500" required />
+          <input type="number" id="new-goal-target" class="inline-edit-input" step="100" min="100" placeholder="Target ($)" required />
+          <input type="number" id="new-goal-monthly" class="inline-edit-input" step="25" min="10" placeholder="Monthly ($)" value="250" required />
+          <input type="date" id="new-goal-date" class="inline-edit-input" value="2027-12-01" required />
+          <button type="submit" class="btn btn-gold btn-sm">＋ Add Goal</button>
+        </form>
+      </div>
+    `;
+  }
+
   function render() {
     updateHeader();
     const container = document.getElementById("workspace-content");
@@ -2936,8 +4024,12 @@ const AppBridge = (() => {
       container.innerHTML = renderBudgetsView();
     } else if (state.activeView === "CashFlow") {
       container.innerHTML = renderCashFlowView();
+    } else if (state.activeView === "SavingsGoals") {
+      container.innerHTML = renderSavingsGoalsView();
     } else if (state.activeView === "Investments") {
       container.innerHTML = renderInvestmentsView();
+    } else if (state.activeView === "DebtOptimizer") {
+      container.innerHTML = renderDebtOptimizerView();
     } else if (state.activeView === "Reports") {
       container.innerHTML = renderReportsView();
     } else if (state.activeView === "WebPortal") {
@@ -3411,6 +4503,9 @@ const AppBridge = (() => {
     const referenceNumber = document.getElementById("tx-ref").value.trim();
     const status = document.getElementById("tx-status").value;
     const memo = document.getElementById("tx-memo").value.trim();
+    const rawTags = document.getElementById("tx-tags")?.value.trim() || "";
+    const receiptRef = document.getElementById("tx-receipt")?.value.trim() || null;
+    const normalizedTags = parseTagList(rawTags).join(",");
     const isSplit = document.getElementById("tx-is-split").checked;
 
     let splits = [];
@@ -3439,6 +4534,8 @@ const AppBridge = (() => {
         referenceNumber,
         status,
         memo,
+        tags: normalizedTags,
+        receiptRef,
         amount: signedAmount,
         splits
       });
@@ -3452,8 +4549,11 @@ const AppBridge = (() => {
         transactionDate,
         referenceNumber: referenceNumber || "MAN",
         payeeName,
+        categoryId,
         categoryName: isSplit ? "-- Split Transaction --" : (catObj ? catObj.fullPath : "Uncategorized"),
         memo,
+        tags: normalizedTags,
+        receiptRef,
         amount: signedAmount,
         runningBalance: 0,
         status,
@@ -3490,6 +4590,13 @@ const AppBridge = (() => {
           if (data.portfolioSummary) state.portfolioSummary = data.portfolioSummary;
           if (data.recurringSummary) state.recurringSummary = data.recurringSummary;
           if (data.reportSummary) state.reportSummary = data.reportSummary;
+          if (data.debtSummary) {
+            state.debtSummary = data.debtSummary;
+            state.debtStrategyMode = data.debtSummary.activeStrategy || state.debtStrategyMode;
+          }
+          if (data.savingsGoalsSummary) {
+            state.savingsGoalsSummary = data.savingsGoalsSummary;
+          }
           if (Array.isArray(data.accounts)) state.accounts = data.accounts;
           if (Array.isArray(data.categories)) state.categories = data.categories;
           if (Array.isArray(data.payees)) state.payees = data.payees;
@@ -3565,6 +4672,11 @@ const AppBridge = (() => {
     selectAccount,
     cycleStatus,
     setStatusFilter: (f) => { state.statusFilter = f; render(); },
+    setTagFilter,
+    setCategoryFilter,
+    setAmountRangeFilter,
+    toggleReceiptOnlyFilter,
+    resetRegisterFilters,
     toggleExpandSplit: (id) => { state.expandedSplitIds[id] = !state.expandedSplitIds[id]; render(); },
     startInlineEdit,
     cancelInlineEdit,
@@ -3598,6 +4710,14 @@ const AppBridge = (() => {
     exportLedgerCsv,
     exportStewardshipTaxCsv,
     exportWorkspaceJsonBackup,
+    setDebtStrategy,
+    updateDebtLiabilityInline,
+    submitNewDebtLiability,
+    deleteDebtLiability,
+    updateSavingsGoalInline,
+    contributeSavingsGoal,
+    submitNewSavingsGoal,
+    deleteSavingsGoal,
     openNewTransactionModal,
     closeModal,
     toggleSplitEditor,

@@ -35,11 +35,42 @@ public static class DatabaseInitializer
         connection.Open();
 
         CreateSchema(connection);
+        EnsurePhase4CColumns(connection);
         SeedIfEmpty(connection);
         SeedRulesIfEmpty(connection);
         SeedBudgetEnvelopesIfEmpty(connection);
         SeedInvestmentHoldingsIfEmpty(connection);
         SeedRecurringSchedulesIfEmpty(connection);
+        SeedDebtLiabilitiesIfEmpty(connection);
+        SeedSavingsGoalsIfEmpty(connection);
+    }
+
+    private static void EnsurePhase4CColumns(SqliteConnection connection)
+    {
+        var existingCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var pragmaCmd = connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Transactions);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                existingCols.Add(reader.GetString(1));
+            }
+        }
+
+        if (!existingCols.Contains("Tags"))
+        {
+            using var alterTags = connection.CreateCommand();
+            alterTags.CommandText = "ALTER TABLE Transactions ADD COLUMN Tags TEXT NOT NULL DEFAULT '';";
+            alterTags.ExecuteNonQuery();
+        }
+
+        if (!existingCols.Contains("ReceiptRef"))
+        {
+            using var alterReceipt = connection.CreateCommand();
+            alterReceipt.CommandText = "ALTER TABLE Transactions ADD COLUMN ReceiptRef TEXT NULL;";
+            alterReceipt.ExecuteNonQuery();
+        }
     }
 
     private static void CreateSchema(SqliteConnection connection)
@@ -93,6 +124,8 @@ public static class DatabaseInitializer
                 PayeeName TEXT NOT NULL DEFAULT '',
                 CategoryId INTEGER NULL,
                 Memo TEXT NULL,
+                Tags TEXT NOT NULL DEFAULT '',
+                ReceiptRef TEXT NULL,
                 Amount NUMERIC NOT NULL DEFAULT 0,
                 Status TEXT NOT NULL DEFAULT 'Uncleared' CHECK (Status IN ('Uncleared', 'Cleared', 'Reconciled')),
                 IsSplit INTEGER NOT NULL DEFAULT 0,
@@ -185,12 +218,45 @@ public static class DatabaseInitializer
                 FOREIGN KEY (CategoryId) REFERENCES Categories(Id) ON DELETE SET NULL
             );
 
+            CREATE TABLE IF NOT EXISTS DebtLiabilities (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                AccountId INTEGER NULL,
+                LiabilityName TEXT NOT NULL,
+                LenderInstitution TEXT NOT NULL,
+                LiabilityType TEXT NOT NULL DEFAULT 'Mortgage',
+                CurrentBalance NUMERIC NOT NULL DEFAULT 0,
+                InterestRateApr NUMERIC NOT NULL DEFAULT 5.25,
+                MinimumMonthlyPayment NUMERIC NOT NULL DEFAULT 0,
+                EscrowAndTaxesMonthly NUMERIC NOT NULL DEFAULT 0,
+                ExtraPrincipalMonthly NUMERIC NOT NULL DEFAULT 0,
+                OriginalPrincipal NUMERIC NOT NULL DEFAULT 0,
+                FOREIGN KEY (AccountId) REFERENCES Accounts(Id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS SavingsGoals (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                AccountId INTEGER NOT NULL DEFAULT 2,
+                Name TEXT NOT NULL,
+                CategoryGroup TEXT NOT NULL DEFAULT 'Emergency & Reserves',
+                IconGlyph TEXT NOT NULL DEFAULT '🛡️',
+                ColorHex TEXT NOT NULL DEFAULT '#10B981',
+                TargetAmount NUMERIC NOT NULL DEFAULT 0,
+                CurrentSavedAmount NUMERIC NOT NULL DEFAULT 0,
+                MonthlyContributionTarget NUMERIC NOT NULL DEFAULT 0,
+                TargetDate TEXT NOT NULL DEFAULT '2027-06-01',
+                PriorityOrder INTEGER NOT NULL DEFAULT 10,
+                Notes TEXT NULL,
+                FOREIGN KEY (AccountId) REFERENCES Accounts(Id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS IX_Transactions_AccountId_Date ON Transactions(AccountId, TransactionDate);
             CREATE INDEX IF NOT EXISTS IX_TransactionSplits_TransactionId ON TransactionSplits(TransactionId);
             CREATE INDEX IF NOT EXISTS IX_CategorizationRules_Priority ON CategorizationRules(Priority, Id);
             CREATE INDEX IF NOT EXISTS IX_BudgetEnvelopes_MonthKey ON BudgetEnvelopes(MonthKey, CategoryId);
             CREATE INDEX IF NOT EXISTS IX_InvestmentHoldings_AccountId ON InvestmentHoldings(AccountId);
             CREATE INDEX IF NOT EXISTS IX_RecurringSchedules_NextDueDate ON RecurringSchedules(NextDueDate);
+            CREATE INDEX IF NOT EXISTS IX_DebtLiabilities_AccountId ON DebtLiabilities(AccountId);
+            CREATE INDEX IF NOT EXISTS IX_SavingsGoals_PriorityOrder ON SavingsGoals(PriorityOrder, Id);
             """;
 
         using var command = connection.CreateCommand();
@@ -271,27 +337,27 @@ public static class DatabaseInitializer
                 (14, 'Chase Card Services Transfer', 70, 'CHASE CREDIT CRD*AUTOPAY', 'https://chase.com', 'Monthly card payment');
 
             -- 4. Seed 16 Realistic Transactions across Primary Checking (1), High-Yield Savings (2), and Rewards Visa (3)
-            INSERT INTO Transactions (Id, AccountId, TransactionDate, ReferenceNumber, PayeeId, PayeeName, CategoryId, Memo, Amount, Status, IsSplit) VALUES
-                (1, 1, '2026-11-01', 'DD-901', 1, 'Grace Sovereign Systems Payroll', 10, 'Bi-weekly net salary direct deposit', 3650.00, 'Reconciled', 0),
-                (2, 1, '2026-11-02', 'ACH-104', 3, 'Rocket Mortgage Servicing', 20, 'November principal, interest & escrow', -1845.00, 'Reconciled', 0),
-                (3, 1, '2026-11-03', 'ACH-108', 2, 'St. Mary Parish Stewardship', 50, 'Firstfruits monthly parish offering', -550.00, 'Reconciled', 0),
-                (4, 1, '2026-11-05', 'Split', 5, 'Costco Wholesale', 30, 'Monthly bulk pantry + household stockup', -248.60, 'Cleared', 1),
-                (5, 1, '2026-11-06', 'ACH-215', 6, 'Pacific Gas & Electric', 21, 'Autumn utility cycle statement', -142.35, 'Cleared', 0),
-                (6, 1, '2026-11-08', 'INV-412', 8, 'Lighthouse Advisory Partners', 11, 'Q4 FinTech architecture milestone', 1250.00, 'Cleared', 0),
-                (7, 1, '2026-11-10', 'XFER-88', 14, 'Chase Card Services Transfer', 70, 'Payment to Rewards Visa ••7390', -500.00, 'Cleared', 0),
-                (8, 1, '2026-11-11', 'Split', 13, 'Target Superstore', 32, 'Home essentials, books & winter coat', -164.80, 'Cleared', 1),
-                (9, 1, '2026-11-13', 'POS-334', 4, 'Whole Foods Market', 30, 'Fresh produce, poultry & bakery', -138.45, 'Uncleared', 0),
-                (10, 1, '2026-11-14', 'ACH-992', 7, 'Sonic Fiber Telecom', 22, 'November gigabit fiber service', -79.99, 'Uncleared', 0),
+            INSERT INTO Transactions (Id, AccountId, TransactionDate, ReferenceNumber, PayeeId, PayeeName, CategoryId, Memo, Tags, ReceiptRef, Amount, Status, IsSplit) VALUES
+                (1, 1, '2026-11-01', 'DD-901', 1, 'Grace Sovereign Systems Payroll', 10, 'Bi-weekly net salary direct deposit', '#Payroll,#W2Income', 'PAYSTUB-2026-22.PDF', 3650.00, 'Reconciled', 0),
+                (2, 1, '2026-11-02', 'ACH-104', 3, 'Rocket Mortgage Servicing', 20, 'November principal, interest & escrow', '#FixedBill,#TaxEscrow', 'STMT-MORT-1126.PDF', -1845.00, 'Reconciled', 0),
+                (3, 1, '2026-11-03', 'ACH-108', 2, 'St. Mary Parish Stewardship', 50, 'Firstfruits monthly parish offering', '#TaxDeductible,#Ministry', 'RCPT-STMARY-1103.PDF', -550.00, 'Reconciled', 0),
+                (4, 1, '2026-11-05', 'Split', 5, 'Costco Wholesale', 30, 'Monthly bulk pantry + household stockup', '#Family,#BulkStockup', 'COSTCO-WHSE-1105.JPG', -248.60, 'Cleared', 1),
+                (5, 1, '2026-11-06', 'ACH-215', 6, 'Pacific Gas & Electric', 21, 'Autumn utility cycle statement', '#FixedBill', 'PGE-2026-11.PDF', -142.35, 'Cleared', 0),
+                (6, 1, '2026-11-08', 'INV-412', 8, 'Lighthouse Advisory Partners', 11, 'Q4 FinTech architecture milestone', '#1099Income,#Advisory', 'INV-412-SIGNED.PDF', 1250.00, 'Cleared', 0),
+                (7, 1, '2026-11-10', 'XFER-88', 14, 'Chase Card Services Transfer', 70, 'Payment to Rewards Visa ••7390', '#InternalTransfer', NULL, -500.00, 'Cleared', 0),
+                (8, 1, '2026-11-11', 'Split', 13, 'Target Superstore', 32, 'Home essentials, books & winter coat', '#Family,#Education', 'TARGET-1111-SPLIT.JPG', -164.80, 'Cleared', 1),
+                (9, 1, '2026-11-13', 'POS-334', 4, 'Whole Foods Market', 30, 'Fresh produce, poultry & bakery', '#Family', 'WFM-POS-334.JPG', -138.45, 'Uncleared', 0),
+                (10, 1, '2026-11-14', 'ACH-992', 7, 'Sonic Fiber Telecom', 22, 'November gigabit fiber service', '#FixedBill,#Reimbursable', 'SONIC-INV-992.PDF', -79.99, 'Uncleared', 0),
 
                 -- High-Yield Savings (Account 2)
-                (11, 2, '2026-11-01', 'XFER-01', 12, 'Marcus High-Yield Interest', 12, 'October APY compounded interest payout', 112.40, 'Reconciled', 0),
-                (12, 2, '2026-11-09', 'SAV-402', 1, 'Grace Sovereign Systems Payroll', 71, 'Automated emergency reserve allocation', 750.00, 'Cleared', 0),
+                (11, 2, '2026-11-01', 'XFER-01', 12, 'Marcus High-Yield Interest', 12, 'October APY compounded interest payout', '#1099INT,#PassiveYield', '1099-INT-NOV.PDF', 112.40, 'Reconciled', 0),
+                (12, 2, '2026-11-09', 'SAV-402', 1, 'Grace Sovereign Systems Payroll', 71, 'Automated emergency reserve allocation', '#SinkingFund,#EmergencyReserve', NULL, 750.00, 'Cleared', 0),
 
                 -- Rewards Visa (Account 3)
-                (13, 3, '2026-11-04', 'CC-882', 10, 'GitHub & JetBrains Cloud', 60, 'Annual DotUltimate + Copilot Pro renewal', -189.00, 'Reconciled', 0),
-                (14, 3, '2026-11-07', 'CC-901', 11, 'Shell Clean Energy Station', 40, 'Premium fuel fill-up', -58.90, 'Cleared', 0),
-                (15, 3, '2026-11-10', 'XFER-88', 14, 'Chase Card Services Transfer', 70, 'Payment received from Primary Checking', 500.00, 'Cleared', 0),
-                (16, 3, '2026-11-13', 'CC-945', 9, 'Blue Bottle Coffee Roasters', 31, 'Client coffee catch-up & espresso beans', -36.50, 'Uncleared', 0);
+                (13, 3, '2026-11-04', 'CC-882', 10, 'GitHub & JetBrains Cloud', 60, 'Annual DotUltimate + Copilot Pro renewal', '#Reimbursable,#TaxDeductible', 'JETBRAINS-INV-882.PDF', -189.00, 'Reconciled', 0),
+                (14, 3, '2026-11-07', 'CC-901', 11, 'Shell Clean Energy Station', 40, 'Premium fuel fill-up', '#Auto', 'SHELL-0901.JPG', -58.90, 'Cleared', 0),
+                (15, 3, '2026-11-10', 'XFER-88', 14, 'Chase Card Services Transfer', 70, 'Payment received from Primary Checking', '#InternalTransfer', NULL, 500.00, 'Cleared', 0),
+                (16, 3, '2026-11-13', 'CC-945', 9, 'Blue Bottle Coffee Roasters', 31, 'Client coffee catch-up & espresso beans', '#Reimbursable,#Advisory', 'SQ-BLUEBOTTLE-945.JPG', -36.50, 'Uncleared', 0);
 
             -- 5. Seed TransactionSplits for Split Transactions (#4 and #8)
             INSERT INTO TransactionSplits (Id, TransactionId, CategoryId, Memo, Amount, TransferAccountId) VALUES
@@ -441,6 +507,59 @@ public static class DatabaseInitializer
 
         using var cmd = connection.CreateCommand();
         cmd.CommandText = recurringSeedSql;
+        cmd.ExecuteNonQuery();
+    }
+
+    private static void SeedDebtLiabilitiesIfEmpty(SqliteConnection connection)
+    {
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.CommandText = "SELECT COUNT(1) FROM DebtLiabilities;";
+            long count = Convert.ToInt64(checkCmd.ExecuteScalar() ?? 0L);
+            if (count > 0)
+            {
+                return;
+            }
+        }
+
+        const string debtSeedSql = """
+            INSERT INTO DebtLiabilities
+                (Id, AccountId, LiabilityName, LenderInstitution, LiabilityType, CurrentBalance, InterestRateApr, MinimumMonthlyPayment, EscrowAndTaxesMonthly, ExtraPrincipalMonthly, OriginalPrincipal)
+            VALUES
+                (1, 6,    'Home Residence Mortgage ••1108',      'Rocket Mortgage',           'Mortgage',   218400.00,  5.375, 1485.00, 360.00, 300.00, 265000.00),
+                (2, NULL, 'Family Hybrid SUV Auto Note ••8419',  'Toyota Financial Services', 'AutoLoan',    11450.00,  4.490,  385.00,   0.00, 150.00,  24500.00),
+                (3, 3,    'Rewards Visa Statement Balance ••7390', 'Chase Sapphire Reserve',  'CreditCard',    424.40, 21.990,   75.00,   0.00, 100.00,   1500.00);
+            """;
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = debtSeedSql;
+        cmd.ExecuteNonQuery();
+    }
+
+    private static void SeedSavingsGoalsIfEmpty(SqliteConnection connection)
+    {
+        using (var checkCmd = connection.CreateCommand())
+        {
+            checkCmd.CommandText = "SELECT COUNT(1) FROM SavingsGoals;";
+            long count = Convert.ToInt64(checkCmd.ExecuteScalar() ?? 0L);
+            if (count > 0)
+            {
+                return;
+            }
+        }
+
+        const string savingsSeedSql = """
+            INSERT INTO SavingsGoals
+                (Id, AccountId, Name, CategoryGroup, IconGlyph, ColorHex, TargetAmount, CurrentSavedAmount, MonthlyContributionTarget, TargetDate, PriorityOrder, Notes)
+            VALUES
+                (1, 2, '6-Month Household Emergency Reserve', 'Emergency & Reserves', '🛡️', '#10B981', 24000.00, 18500.00, 750.00, '2027-06-01', 10, 'Core 6-month operating expense safety net in Marcus 4.65% APY'),
+                (2, 2, 'Next Family Vehicle Cash Sinking Fund', 'Major Purchases',     '🚗', '#38BDF8', 15000.00,  4800.00, 550.00, '2028-03-01', 20, 'Debt-free down payment & replacement reserve'),
+                (3, 2, 'Rome & Assisi Jubilee Pilgrimage',      'Family & Ministry',   '⛪', '#F59E0B',  6500.00,  3462.40, 400.00, '2027-05-01', 30, 'Airfare, lodging & parish pilgrimage fund'),
+                (4, 2, 'Property Tax & Roof Sinking Reserve',   'Home & Escrow',       '🏡', '#A78BFA',  5000.00,  2600.00, 300.00, '2027-04-01', 40, 'Supplemental home maintenance & annual county assessment buffer');
+            """;
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = savingsSeedSql;
         cmd.ExecuteNonQuery();
     }
 }

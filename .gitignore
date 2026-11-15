@@ -33,6 +33,7 @@ WebView2/
 
 # Local SQLite database files and journals
 *.db
+!FullofGraceMoneyManager.Desktop/Data/fullofgrace.db
 *.db-shm
 *.db-wal
 *.sqlite
@@ -63,5 +64,6 @@ Thumbs.db
 .gitconfig
 .gemini
 .gemini/
+.local/
 upload/
 
