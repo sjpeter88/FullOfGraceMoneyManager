@@ -9,6 +9,11 @@ public class BudgetEnvelopeItem
     public string MonthKey { get; set; } = "2026-11";
     public decimal MonthlyTarget { get; set; }
     public decimal RolloverFromPriorMonth { get; set; }
+    public decimal RolloverAmount
+    {
+        get => RolloverFromPriorMonth;
+        set => RolloverFromPriorMonth = value;
+    }
     public decimal AssignedAmount { get; set; }
     public decimal ActivityAmount { get; set; }
 
@@ -33,9 +38,15 @@ public class MonthlyBudgetSummary
 {
     public string MonthKey { get; set; } = "2026-11";
     public string MonthDisplayTitle { get; set; } = "November 2026";
+    public string MonthDisplay
+    {
+        get => MonthDisplayTitle;
+        set => MonthDisplayTitle = value;
+    }
     public decimal TotalInflowPool { get; set; }
+    public decimal TotalRollover { get; set; }
     public decimal TotalAssigned { get; set; }
-    public decimal ReadyToAssign => TotalInflowPool - TotalAssigned;
+    public decimal ReadyToAssign { get; set; }
     public decimal TotalActivitySpent { get; set; }
     public decimal TotalAvailableInEnvelopes { get; set; }
     public decimal TotalUnderfunded { get; set; }
