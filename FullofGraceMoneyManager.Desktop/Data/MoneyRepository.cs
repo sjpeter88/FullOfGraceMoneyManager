@@ -48,6 +48,8 @@ public class MoneyRepository
         _connectionString = DatabaseInitializer.GetConnectionString();
     }
 
+    public static string CurrentMonthKey() => DateTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+
     public List<Account> GetAccountsWithBalances()
     {
         var accounts = new List<Account>();
